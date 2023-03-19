@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
+	"net/url"
 	"os"
+	"strconv"
 
 	"github.com/jackpal/bencode-go"
-)
-
-const (
-	InfoHashLen  = 20
-	PieceHashLen = 20
+	"github.com/DanArmor/GoTorrent/pkg/utils"
 )
 
 type bencodeTorrent interface {
@@ -30,7 +28,7 @@ type bencodeTorrentV1 struct {
 	Info     bencodeInfoV1 `bencode:"info"`
 }
 
-func (bi *bencodeInfoV1) hash() ([InfoHashLen]byte, error) {
+func (bi *bencodeInfoV1) hash() ([utils.InfoHashLen]byte, error) {
 	var buf bytes.Buffer
 	err := bencode.Marshal(&buf, *bi)
 	if err != nil {
@@ -40,15 +38,15 @@ func (bi *bencodeInfoV1) hash() ([InfoHashLen]byte, error) {
 	return h, nil
 }
 
-func (bi *bencodeInfoV1) splitPieceHashes() ([][PieceHashLen]byte, error) {
+func (bi *bencodeInfoV1) splitPieceHashes() ([][utils.PieceHashLen]byte, error) {
 	buf := []byte(bi.Pieces)
-	if len(buf)%PieceHashLen != 0 {
+	if len(buf)%utils.PieceHashLen != 0 {
 		return nil, fmt.Errorf("malformed pieces of length %d", len(buf))
 	}
-	n := len(buf) / PieceHashLen
-	hashes := make([][PieceHashLen]byte, n)
+	n := len(buf) / utils.PieceHashLen
+	hashes := make([][utils.PieceHashLen]byte, n)
 	for i := 0; i < n; i++ {
-		copy(hashes[i][:], buf[i*PieceHashLen:(i+1)*PieceHashLen])
+		copy(hashes[i][:], buf[i*utils.PieceHashLen:(i+1)*utils.PieceHashLen])
 	}
 	return hashes, nil
 }
@@ -75,8 +73,8 @@ func (bt *bencodeTorrentV1) toTorrentFile() (TorrentFile, error) {
 
 type TorrentFile struct {
 	Announce    string
-	InfoHash    [InfoHashLen]byte
-	PieceHashes [][PieceHashLen]byte
+	InfoHash    [utils.InfoHashLen]byte
+	PieceHashes [][utils.PieceHashLen]byte
 	PieceLength int64
 	Length      int64
 	Name        string
@@ -95,4 +93,22 @@ func Parse(path string) (TorrentFile, error) {
 		return TorrentFile{}, err
 	}
 	return bt.toTorrentFile()
+}
+
+func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, error) {
+	base, err := url.Parse(tf.Announce)
+	if err != nil {
+		return "", err
+	}
+	params := url.Values{
+		"info_hash" : []string{string(tf.InfoHash[:])},
+		"peer_id" : []string{string(peerID[:])},
+		"port" : []string{strconv.Itoa(int(port))},
+		"uploaded" : []string{"0"},
+		"downloaded" : []string{"0"},
+		"compact" : []string{"1"},
+		"left" : []string{strconv.FormatInt(tf.Length, 10)},
+	}
+	base.RawQuery = params.Encode()
+	return base.String(), nil
 }
