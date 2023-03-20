@@ -14,15 +14,15 @@ type Peer struct {
 
 func Unmarshal(peersBin []byte) ([]Peer, error) {
 	const peerSize = 6
-	if len(peersBin) % peerSize != 0 {
+	if len(peersBin)%peerSize != 0 {
 		return nil, fmt.Errorf("malformed peers")
 	}
 	n := len(peersBin) / peerSize
 	peers := make([]Peer, n)
 	for i := 0; i < n; i++ {
 		offset := i * peerSize
-		peers[i].IP = net.IP(peersBin[offset : offset + 4])
-		peers[i].Port = binary.BigEndian.Uint16(peersBin[offset + 4 : offset + 6])
+		peers[i].IP = net.IP(peersBin[offset : offset+4])
+		peers[i].Port = binary.BigEndian.Uint16(peersBin[offset+4 : offset+6])
 	}
 	return peers, nil
 }
