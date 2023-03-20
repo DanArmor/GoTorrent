@@ -87,7 +87,7 @@ func recvBitfield(conn net.Conn) (bitfield.Bitfield, error) {
 	return message.Payload, nil
 }
 
-func (c *Client)Read(*msg.Message, error) (*msg.Message, error) {
+func (c *Client) Read(*msg.Message, error) (*msg.Message, error) {
 	message, err := msg.Read(c.Conn)
 	return message, err
 }
