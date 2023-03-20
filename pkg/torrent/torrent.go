@@ -18,8 +18,8 @@ type bencodeTorrent interface {
 
 type bencodeInfoV1 struct {
 	Pieces      string `bencode:"pieces"`
-	PieceLength int64  `bencode:"piece length"`
-	Length      int64  `bencode:"length"`
+	PieceLength int  `bencode:"piece length"`
+	Length      int  `bencode:"length"`
 	Name        string `bencode:"name"`
 }
 
@@ -107,7 +107,7 @@ func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, er
 		"uploaded" : []string{"0"},
 		"downloaded" : []string{"0"},
 		"compact" : []string{"1"},
-		"left" : []string{strconv.FormatInt(tf.Length, 10)},
+		"left" : []string{strconv.Itoa(tf.Length)},
 	}
 	base.RawQuery = params.Encode()
 	return base.String(), nil

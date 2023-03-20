@@ -17,12 +17,12 @@ func TestConstructTorrentV1(t *testing.T){
 	}
 
 	pieceLengthAnswer := 262144
-	if torrent.PieceLength != int64(pieceLengthAnswer) {
+	if torrent.PieceLength != pieceLengthAnswer {
 		t.Errorf("wrong piece length:\nGot <%d>\nExp <%d>", torrent.PieceLength, pieceLengthAnswer)
 	}
 
 	lengthAnswer := 406847488
-	if torrent.Length != int64(lengthAnswer) {
+	if torrent.Length != lengthAnswer {
 		t.Errorf("wrong length:\nGot <%d>\nExp <%d>", torrent.Length, lengthAnswer)
 	}
 }
