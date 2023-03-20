@@ -65,3 +65,52 @@ func Read(r io.Reader) (*Message, error){
 
 	return &m, nil
 }
+
+func FormatRequest(index int, begin int, length int) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload[0:4], uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	binary.BigEndian.PutUint32(payload[8:12], uint32(length))
+	return &Message{ID: MsgRequest, Payload: payload}
+}
+
+func FormatHave(index int) *Message {
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint32(payload, uint32(index))
+	return &Message{ID: MsgHave, Payload: payload}
+}
+
+func (m *Message) name() string {
+	if m == nil {
+		return "KeepAlive"
+	}
+	switch m.ID {
+	case MsgChoke:
+		return "Choke"
+	case MsgUnchoke:
+		return "Unchoke"
+	case MsgInterested:
+		return "Interested"
+	case MsgNotInterested:
+		return "NotInterested"
+	case MsgHave:
+		return "Have"
+	case MsgBitfield:
+		return "Bitfield"
+	case MsgRequest:
+		return "Request"
+	case MsgPiece:
+		return "Piece"
+	case MsgCancel:
+		return "Cancel"
+	default:
+		return fmt.Sprintf("Unknown(ID=%d)", m.ID)
+	}
+}
+
+func (m *Message) String() string {
+	if m == nil {
+		return m.name()
+	}
+	return fmt.Sprintf("%s [%d]", m.name(), len(m.Payload))
+}
