@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-func TestConstructTorrentV1(t *testing.T){
+func TestConstructTorrentV1(t *testing.T) {
 	torrent, err := Parse("testdata/torrent_testdata1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	infoHashAnswer := "6d4795dee70aeb88e03e5336ca7c9fcf0a1e206d"
-	if hex.EncodeToString(torrent.InfoHash[:]) != infoHashAnswer{
+	if hex.EncodeToString(torrent.InfoHash[:]) != infoHashAnswer {
 		t.Errorf("wrong infohash:\nGot <%s>\nExp <%s>", hex.EncodeToString(torrent.InfoHash[:]), infoHashAnswer)
 	}
 
