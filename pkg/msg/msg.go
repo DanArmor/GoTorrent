@@ -114,3 +114,37 @@ func (m *Message) String() string {
 	}
 	return fmt.Sprintf("%s [%d]", m.name(), len(m.Payload))
 }
+
+func ParseHave(message *Message) (int, error) {
+	if message.ID != MsgHave {
+		return 0, fmt.Errorf("expected HAVE (ID=%d), got ID=%d", MsgHave, message.ID)
+	}
+	if len(message.Payload) != 4 {
+		return 0, fmt.Errorf("expected payload of length 4, got length %d", len(message.Payload))
+	}
+	index := int(binary.BigEndian.Uint32(message.Payload))
+	return index, nil
+}
+
+func ParsePiece(index int, buf[]byte, message *Message) (int, error) {
+	if message.ID != MsgPiece {
+		return 0, fmt.Errorf("expected PIECE (ID=%d), got ID=%d", MsgPiece, message.ID)
+	}
+	if len(message.Payload) < 8 {
+		return 0, fmt.Errorf("payload too short(%d < 8)", len(message.Payload))
+	}
+	parsedIndex := int(binary.BigEndian.Uint32(message.Payload[0:4]))
+	if parsedIndex != index {
+		return 0, fmt.Errorf("expected index %d, got %d", index, parsedIndex)
+	}
+	begin := int(binary.BigEndian.Uint32(message.Payload[4:8]))
+	if begin >= len(buf) {
+		return 0, fmt.Errorf("begin offset too high(%d >= %d)", begin, len(buf))
+	}
+	data := message.Payload[8:]
+	if begin+len(data) > len(buf) {
+		return 0, fmt.Errorf("data too long (%d) for offset %d with length %d", len(data), begin, len(buf))
+	}
+	copy(buf[begin:], data)
+	return len(data), nil
+}
