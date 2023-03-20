@@ -21,7 +21,7 @@ const (
 )
 
 type Message struct {
-	ID MessageID
+	ID      MessageID
 	Payload []byte
 }
 
@@ -37,9 +37,9 @@ func (m *Message) Serialize() []byte {
 	return buf
 }
 
-func Read(r io.Reader) (*Message, error){
-	lengthBuf := make([]byte, 0)
-	_, err := r.Read(lengthBuf)
+func Read(r io.Reader) (*Message, error) {
+	lengthBuf := make([]byte, 4)
+	_, err := io.ReadFull(r, lengthBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -50,16 +50,16 @@ func Read(r io.Reader) (*Message, error){
 	}
 
 	messageBuf := make([]byte, length)
-	n, err := r.Read(messageBuf)
+	n, err := io.ReadFull(r, messageBuf)
 	if err != nil {
 		return nil, err
 	}
 	if n != int(length) {
-		return nil, fmt.Errorf("wrong message len <%d>", n)
+		return nil, fmt.Errorf("wrong message len <%d>(%d)", int(length), n)
 	}
 
 	m := Message{
-		ID: MessageID(messageBuf[0]),
+		ID:      MessageID(messageBuf[0]),
 		Payload: messageBuf[1:],
 	}
 
@@ -126,7 +126,7 @@ func ParseHave(message *Message) (int, error) {
 	return index, nil
 }
 
-func ParsePiece(index int, buf[]byte, message *Message) (int, error) {
+func ParsePiece(index int, buf []byte, message *Message) (int, error) {
 	if message.ID != MsgPiece {
 		return 0, fmt.Errorf("expected PIECE (ID=%d), got ID=%d", MsgPiece, message.ID)
 	}
