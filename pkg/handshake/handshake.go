@@ -8,9 +8,9 @@ import (
 )
 
 type Handshake struct {
-	Pstr string
+	Pstr     string
 	InfoHash [utils.InfoHashLen]byte
-	PeerID [utils.PeerIDLen]byte
+	PeerID   [utils.PeerIDLen]byte
 }
 
 func (h *Handshake) Serialize() []byte {
@@ -36,24 +36,24 @@ func Read(r io.Reader) (*Handshake, error) {
 	}
 	var (
 		infoHash [utils.InfoHashLen]byte
-		peerID [utils.PeerIDLen]byte
+		peerID   [utils.PeerIDLen]byte
 	)
-	copy(infoHash[:], buf[utils.ProtocolIDLen+1+8 : utils.PeerIDLen+1+8+utils.InfoHashLen])
+	copy(infoHash[:], buf[utils.ProtocolIDLen+1+8:utils.PeerIDLen+1+8+utils.InfoHashLen])
 	copy(peerID[:], buf[utils.PeerIDLen+1+8+utils.InfoHashLen:])
 
 	h := Handshake{
-		Pstr: string(buf[1:utils.ProtocolIDLen]),
+		Pstr:     string(buf[1:utils.ProtocolIDLen]),
 		InfoHash: infoHash,
-		PeerID: peerID,
+		PeerID:   peerID,
 	}
 
-	return &h, nil	
+	return &h, nil
 }
 
-func New(infoHash [utils.InfoHashLen]byte, peerID[utils.PeerIDLen]byte) *Handshake {
+func New(infoHash [utils.InfoHashLen]byte, peerID [utils.PeerIDLen]byte) *Handshake {
 	return &Handshake{
-		Pstr: utils.ProtocolID,
+		Pstr:     utils.ProtocolID,
 		InfoHash: infoHash,
-		PeerID: peerID,
+		PeerID:   peerID,
 	}
 }
