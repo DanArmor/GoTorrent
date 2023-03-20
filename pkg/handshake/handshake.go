@@ -27,7 +27,7 @@ func (h *Handshake) Serialize() []byte {
 
 func Read(r io.Reader) (*Handshake, error) {
 	buf := make([]byte, utils.HandshakeSize)
-	n, err := r.Read(buf)
+	n, err := io.ReadFull(r, buf)
 	if err != nil {
 		return nil, err
 	}
