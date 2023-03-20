@@ -49,3 +49,11 @@ func Read(r io.Reader) (*Handshake, error) {
 
 	return &h, nil	
 }
+
+func New(infoHash [utils.InfoHashLen]byte, peerID[utils.PeerIDLen]byte) *Handshake {
+	return &Handshake{
+		Pstr: utils.ProtocolID,
+		InfoHash: infoHash,
+		PeerID: peerID,
+	}
+}
