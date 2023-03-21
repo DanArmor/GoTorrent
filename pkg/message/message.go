@@ -1,4 +1,4 @@
-package msg
+package message
 
 import (
 	"encoding/binary"
@@ -55,7 +55,7 @@ func Read(r io.Reader) (*Message, error) {
 		return nil, err
 	}
 	if n != int(length) {
-		return nil, fmt.Errorf("wrong message len <%d>(%d)", int(length), n)
+		return nil, fmt.Errorf("wrong msg len <%d>(%d)", int(length), n)
 	}
 
 	m := Message{
@@ -115,33 +115,33 @@ func (m *Message) String() string {
 	return fmt.Sprintf("%s [%d]", m.name(), len(m.Payload))
 }
 
-func ParseHave(message *Message) (int, error) {
-	if message.ID != MsgHave {
-		return 0, fmt.Errorf("expected HAVE (ID=%d), got ID=%d", MsgHave, message.ID)
+func ParseHave(msg *Message) (int, error) {
+	if msg.ID != MsgHave {
+		return 0, fmt.Errorf("expected HAVE (ID=%d), got ID=%d", MsgHave, msg.ID)
 	}
-	if len(message.Payload) != 4 {
-		return 0, fmt.Errorf("expected payload of length 4, got length %d", len(message.Payload))
+	if len(msg.Payload) != 4 {
+		return 0, fmt.Errorf("expected payload of length 4, got length %d", len(msg.Payload))
 	}
-	index := int(binary.BigEndian.Uint32(message.Payload))
+	index := int(binary.BigEndian.Uint32(msg.Payload))
 	return index, nil
 }
 
-func ParsePiece(index int, buf []byte, message *Message) (int, error) {
-	if message.ID != MsgPiece {
-		return 0, fmt.Errorf("expected PIECE (ID=%d), got ID=%d", MsgPiece, message.ID)
+func ParsePiece(index int, buf []byte, msg *Message) (int, error) {
+	if msg.ID != MsgPiece {
+		return 0, fmt.Errorf("expected PIECE (ID=%d), got ID=%d", MsgPiece, msg.ID)
 	}
-	if len(message.Payload) < 8 {
-		return 0, fmt.Errorf("payload too short(%d < 8)", len(message.Payload))
+	if len(msg.Payload) < 8 {
+		return 0, fmt.Errorf("payload too short(%d < 8)", len(msg.Payload))
 	}
-	parsedIndex := int(binary.BigEndian.Uint32(message.Payload[0:4]))
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
 	if parsedIndex != index {
 		return 0, fmt.Errorf("expected index %d, got %d", index, parsedIndex)
 	}
-	begin := int(binary.BigEndian.Uint32(message.Payload[4:8]))
+	begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
 	if begin >= len(buf) {
 		return 0, fmt.Errorf("begin offset too high(%d >= %d)", begin, len(buf))
 	}
-	data := message.Payload[8:]
+	data := msg.Payload[8:]
 	if begin+len(data) > len(buf) {
 		return 0, fmt.Errorf("data too long (%d) for offset %d with length %d", len(data), begin, len(buf))
 	}

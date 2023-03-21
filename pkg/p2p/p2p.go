@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DanArmor/GoTorrent/pkg/client"
-	"github.com/DanArmor/GoTorrent/pkg/msg"
+	"github.com/DanArmor/GoTorrent/pkg/message"
 	"github.com/DanArmor/GoTorrent/pkg/peers"
 	"github.com/DanArmor/GoTorrent/pkg/utils"
 )
@@ -49,28 +49,28 @@ type pieceProgress struct {
 }
 
 func (state *pieceProgress) readMessage() error {
-	message, err := state.client.Read()
+	msg, err := state.client.Read()
 	if err != nil {
 		return err
 	}
 
-	if message == nil {
+	if msg == nil {
 		return nil
 	}
 
-	switch message.ID {
-	case msg.MsgUnchoke:
+	switch msg.ID {
+	case message.MsgUnchoke:
 		state.client.Choked = false
-	case msg.MsgChoke:
+	case message.MsgChoke:
 		state.client.Choked = true
-	case msg.MsgHave:
-		index, err := msg.ParseHave(message)
+	case message.MsgHave:
+		index, err := message.ParseHave(msg)
 		if err != nil {
 			return err
 		}
 		state.client.Bitfield.SetPiece(index)
-	case msg.MsgPiece:
-		n, err := msg.ParsePiece(state.index, state.buf, message)
+	case message.MsgPiece:
+		n, err := message.ParsePiece(state.index, state.buf, msg)
 		if err != nil {
 			return err
 		}

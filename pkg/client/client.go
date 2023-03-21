@@ -8,7 +8,7 @@ import (
 
 	"github.com/DanArmor/GoTorrent/pkg/bitfield"
 	"github.com/DanArmor/GoTorrent/pkg/handshake"
-	"github.com/DanArmor/GoTorrent/pkg/msg"
+	"github.com/DanArmor/GoTorrent/pkg/message"
 	"github.com/DanArmor/GoTorrent/pkg/peers"
 	"github.com/DanArmor/GoTorrent/pkg/utils"
 )
@@ -73,51 +73,51 @@ func recvBitfield(conn net.Conn) (bitfield.Bitfield, error) {
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	defer conn.SetDeadline(time.Time{})
 
-	message, err := msg.Read(conn)
+	msg, err := message.Read(conn)
 	if err != nil {
 		return nil, err
 	}
-	if message == nil {
+	if msg == nil {
 		return nil, fmt.Errorf("expected bitfield, but got nil")
 	}
-	if message.ID != msg.MsgBitfield {
-		return nil, fmt.Errorf("expected bitfield but got ID %d", message.ID)
+	if msg.ID != message.MsgBitfield {
+		return nil, fmt.Errorf("expected bitfield but got ID %d", msg.ID)
 	}
 
-	return message.Payload, nil
+	return msg.Payload, nil
 }
 
-func (c *Client) Read() (*msg.Message, error) {
-	message, err := msg.Read(c.Conn)
-	return message, err
+func (c *Client) Read() (*message.Message, error) {
+	msg, err := message.Read(c.Conn)
+	return msg, err
 }
 
 func (c *Client) SendRequest(index int, begin int, length int) error {
-	req := msg.FormatRequest(index, begin, length)
+	req := message.FormatRequest(index, begin, length)
 	_, err := c.Conn.Write(req.Serialize())
 	return err
 }
 
 func (c *Client) SendInterested() error {
-	req := msg.Message{ID: msg.MsgInterested}
+	req := message.Message{ID: message.MsgInterested}
 	_, err := c.Conn.Write(req.Serialize())
 	return err
 }
 
 func (c *Client) SendNotInterested() error {
-	req := msg.Message{ID: msg.MsgNotInterested}
+	req := message.Message{ID: message.MsgNotInterested}
 	_, err := c.Conn.Write(req.Serialize())
 	return err
 }
 
 func (c *Client) SendUnchoke() error {
-	req := msg.Message{ID: msg.MsgUnchoke}
+	req := message.Message{ID: message.MsgUnchoke}
 	_, err := c.Conn.Write(req.Serialize())
 	return err
 }
 
 func (c *Client) SendHave(index int) error {
-	req := msg.FormatHave(index)
+	req := message.FormatHave(index)
 	_, err := c.Conn.Write(req.Serialize())
 	return err
 }

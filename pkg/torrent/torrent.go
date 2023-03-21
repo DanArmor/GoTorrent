@@ -30,14 +30,14 @@ type bencodeInfoV1 struct {
 	Name        string `bencode:"name"`
 }
 
-type bencodeTrackerRespCompact struct {
-	Interval int    `bencode:"interval"`
-	Peers    string `bencode:"peers"`
-}
-
 type bencodeTorrentV1 struct {
 	Announce string        `bencode:"announce"`
 	Info     bencodeInfoV1 `bencode:"info"`
+}
+
+type bencodeTrackerRespCompact struct {
+	Interval int    `bencode:"interval"`
+	Peers    string `bencode:"peers"`
 }
 
 func (bi *bencodeInfoV1) hash() ([utils.InfoHashLen]byte, error) {
