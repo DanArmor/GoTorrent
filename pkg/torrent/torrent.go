@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
-	"math/rand"
+	"crypto/rand"
 	"net/http"
 	"net/url"
 	"os"
