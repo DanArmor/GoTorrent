@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+
+	"github.com/DanArmor/GoTorrent/pkg/utils"
 )
 
 type Peer struct {
 	IP   net.IP
 	Port uint16
+	PeerID [utils.PeerIDLen]byte
 }
 
 func Unmarshal(peersBin []byte) ([]Peer, error) {
