@@ -3,11 +3,16 @@ package main
 import (
 
 	//	"github.com/DanArmor/GoTorrent/pkg/torrent"
+	"os"
+	"path/filepath"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"github.com/DanArmor/GoTorrent/pkg/torrent"
 	// "fyne.io/fyne/v2/data/binding"
 )
 
@@ -26,7 +31,25 @@ func main() {
 				2,
 				container.NewHBox(
 					widget.NewButton("Open URL", func(){}),
-					widget.NewButton("Open", func(){}),
+					widget.NewButton("Open", func(){
+						fileDialog := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error){
+							if err != nil {
+								panic(err)
+							}
+							if r != nil {
+								defer r.Close()
+								tf, err := torrent.Parse(r.URI().String())
+								if err != nil {
+									panic(err)
+								}
+								err = tf.DownloadToFile(mainApp.Preferences().String("downloadpath"))
+								if err != nil {
+									panic(err)
+								}
+							}
+						}, mainWindow)
+						fileDialog.Show()
+					}),
 					widget.NewButton("Remove", func(){}),
 					widget.NewButton("Resume", func(){}),
 					widget.NewButton("Pause", func(){}),
@@ -88,7 +111,14 @@ func main() {
 				},
 			),
 	))
-	mainWindow.ShowAndRun()
+
 	mainApp.Preferences().SetString("lang", mainApp.Preferences().StringWithFallback("lang", "en-US"))
+	userHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	mainApp.Preferences().SetString("downloadpath", mainApp.Preferences().StringWithFallback("downloadpath", filepath.Join(userHomeDir, "Downloads")))
+
+	mainWindow.ShowAndRun()
 
 }
