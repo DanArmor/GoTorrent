@@ -22,8 +22,6 @@ func main() {
 
 	mainApp := app.NewWithID("MainApp")
 	mainWindow := mainApp.NewWindow("GoTorrent")
-	findTorrent := widget.NewEntry()
-	findTorrent.PlaceHolder = "Find torrent by name. . ."
 	
 	mainWindow.SetContent(
 		container.NewBorder(
@@ -55,7 +53,6 @@ func main() {
 					widget.NewButton("Pause", func(){}),
 					widget.NewButton("Preferences", func(){}),
 				),
-				findTorrent,
 			),
 			container.NewVBox(
 				layout.NewSpacer(),
@@ -78,28 +75,7 @@ func main() {
 					}),
 				),
 			),
-			container.NewVBox(
-				widget.NewLabel("Status"),
-				widget.NewSeparator(),
-				widget.NewButton("All", func() {
-					mainApp.Quit()
-				}),
-				widget.NewButton("Downloading", func() {
-					mainApp.Quit()
-				}),
-				widget.NewButton("Seeding", func() {
-					mainApp.Quit()
-				}),
-				widget.NewButton("Completed", func() {
-					mainApp.Quit()
-				}),
-				widget.NewButton("Resumed", func() {
-					mainApp.Quit()
-				}),
-				widget.NewButton("Paused", func() {
-					mainApp.Quit()
-				}),
-			),
+			nil,
 			nil,
 			widget.NewTable(
 				func()(int, int){return 3, 3},
