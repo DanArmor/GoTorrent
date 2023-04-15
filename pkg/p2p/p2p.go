@@ -226,7 +226,6 @@ func (t *Torrent) Download(done chan struct{}) (int, error) {
 			t.startDownloadWorker(p, workQueue, results)
 		}(peer)
 	}
-	buf := make([]byte, t.Length)
 	donePieces := 0
 	out:
 	for donePieces < len(t.PieceHashes) {
@@ -235,8 +234,7 @@ func (t *Torrent) Download(done chan struct{}) (int, error) {
 			break out
 		default:
 			res := <-results
-			begin, end := t.calculateBoundsForPiece(res.index)
-			copy(buf[begin:end], res.buf)
+			t.writeToFile(*res)
 			donePieces++
 			t.Bitfield.SetPiece(res.index)
 			
