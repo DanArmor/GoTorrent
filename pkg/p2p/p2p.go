@@ -5,12 +5,16 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
+	"sync"
 	"time"
 
+	"github.com/DanArmor/GoTorrent/pkg/bitfield"
 	"github.com/DanArmor/GoTorrent/pkg/client"
 	"github.com/DanArmor/GoTorrent/pkg/message"
 	"github.com/DanArmor/GoTorrent/pkg/peers"
+	"github.com/DanArmor/GoTorrent/pkg/torrent"
 	"github.com/DanArmor/GoTorrent/pkg/utils"
 )
 
@@ -18,14 +22,21 @@ const MaxBlockSize = 16384
 
 const MaxBacklog = 5
 
+type File struct {
+	torrent.File
+	handler *os.File
+}
+
 type Torrent struct {
 	Peers       []peers.Peer
 	PeerID      [utils.PeerIDLen]byte
 	InfoHash    [utils.InfoHashLen]byte
 	PieceHashes [][utils.PieceHashLen]byte
 	PieceLength int
-	Length      int
 	Name        string
+	Length      int
+	Files       []File
+	Bitfield    bitfield.Bitfield
 }
 
 type pieceWork struct {
@@ -158,8 +169,8 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 func (t *Torrent) calculateBoundsForPiece(index int) (begin int, end int) {
 	begin = index * t.PieceLength
 	end = begin + t.PieceLength
-	if end > t.Length {
-		end = t.Length
+	if end > t.Files[len(t.Files)-1].End {
+		end = t.Files[len(t.Files)-1].End
 	}
 	return begin, end
 }
@@ -169,28 +180,73 @@ func (t *Torrent) calculatePieceSize(index int) int {
 	return end - begin
 }
 
-func (t *Torrent) Download() ([]byte, error) {
+func (t *Torrent) writeToFile(pr pieceResult) {
+	begin, _ := t.calculateBoundsForPiece(pr.index)
+	index := 0
+	for i := range t.Files {
+		if begin >= t.Files[i].Begin {
+			index = i
+			break
+		}
+	}
+	pieceLength := t.calculatePieceSize(pr.index)
+	wrote := 0
+	for i := index; i < len(t.Files); i++ {
+		startInFile := begin - t.Files[i].Begin
+		endInFile := startInFile + pieceLength
+		if endInFile > t.Files[i].Length {
+			endInFile = t.Files[i].Length
+		}
+		t.Files[i].handler.WriteAt(pr.buf[wrote:wrote+endInFile-startInFile], int64(startInFile))
+		wrote += endInFile - startInFile
+		pieceLength -= wrote
+		if pieceLength == 0 {
+			break
+		}
+	}
+}
+
+func (t *Torrent) Download(done chan struct{}) (int, error) {
 	log.Printf("Starting downloading <%s>", t.Name)
 	workQueue := make(chan *pieceWork, len(t.PieceHashes))
 	results := make(chan *pieceResult, len(t.PieceHashes)/4)
 	for index, hash := range t.PieceHashes {
-		length := t.calculatePieceSize(index)
-		workQueue <- &pieceWork{index, hash, length}
+		if !t.Bitfield.HasPiece(index){
+			length := t.calculatePieceSize(index)
+			workQueue <- &pieceWork{index, hash, length}
+		}
 	}
+	
+	var wg sync.WaitGroup
+
 	for _, peer := range t.Peers {
-		go t.startDownloadWorker(peer, workQueue, results)
+		wg.Add(1)
+		go func(p peers.Peer){
+			defer wg.Done()
+			t.startDownloadWorker(p, workQueue, results)
+		}(peer)
 	}
 	buf := make([]byte, t.Length)
 	donePieces := 0
+	out:
 	for donePieces < len(t.PieceHashes) {
-		res := <-results
-		begin, end := t.calculateBoundsForPiece(res.index)
-		copy(buf[begin:end], res.buf)
-		donePieces++
-		percent := float64(donePieces) / float64(len(t.PieceHashes)) * 100
-		numWorkers := runtime.NumGoroutine() - 1
-		log.Printf("(%0.2f%%) Downloaded piece %d from %d peers", percent, res.index, numWorkers)
+		select {
+		case <- done:
+			break out
+		default:
+			res := <-results
+			begin, end := t.calculateBoundsForPiece(res.index)
+			copy(buf[begin:end], res.buf)
+			donePieces++
+			t.Bitfield.SetPiece(res.index)
+			
+			percent := float64(donePieces) / float64(len(t.PieceHashes)) * 100
+			numWorkers := runtime.NumGoroutine() - 1
+			log.Printf("(%0.2f%%) Downloaded piece %d from %d peers", percent, res.index, numWorkers)
+		}
+
 	}
 	close(workQueue)
-	return buf, nil
+	wg.Wait()
+	return donePieces, nil
 }
