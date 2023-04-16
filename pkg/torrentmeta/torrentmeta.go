@@ -113,7 +113,7 @@ func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) (
 	return peers.Unmarshal([]byte(trackerResp.Peers))
 }
 
-func (tf *TorrentFile) DownloadToFile(path string) error {
+func (tf *TorrentFile) DownloadToFile() error {
 	var peerID [utils.PeerIDLen]byte
 	_, err := rand.Read(peerID[:])
 	if err != nil {
