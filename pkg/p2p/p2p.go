@@ -107,33 +107,38 @@ func (state *pieceProgress) readMessage() error {
 	return nil
 }
 
-func attemptDownloadPiece(c *client.Client, pw *pieceWork) ([]byte, error) {
+func attemptDownloadPiece(ctx context.Context, c *client.Client, pw *pieceWork) ([]byte, error) {
 	state := pieceProgress{
 		index:  pw.index,
 		client: c,
 		buf:    make([]byte, pw.length),
 	}
-	c.Conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
+	c.Conn.SetDeadline(time.Now().Add(1 * time.Second))
 	defer c.Conn.SetDeadline(time.Time{})
 
 	for state.downloaded < pw.length {
-		if !state.client.Choked {
-			for state.backlog < MaxBacklog && state.requested < pw.length {
-				blockSize := MaxBlockSize
-				if pw.length-state.requested < blockSize {
-					blockSize = pw.length - state.requested
+		select {
+		case <- ctx.Done():
+			return nil, fmt.Errorf("Stopped by context")
+		default:
+			if !state.client.Choked {
+				for state.backlog < MaxBacklog && state.requested < pw.length {
+					blockSize := MaxBlockSize
+					if pw.length-state.requested < blockSize {
+						blockSize = pw.length - state.requested
+					}
+					err := c.SendRequest(pw.index, state.requested, blockSize)
+					if err != nil {
+						return nil, err
+					}
+					state.backlog++
+					state.requested += blockSize
 				}
-				err := c.SendRequest(pw.index, state.requested, blockSize)
-				if err != nil {
-					return nil, err
-				}
-				state.backlog++
-				state.requested += blockSize
 			}
-		}
-		err := state.readMessage()
-		if err != nil {
-			return nil, err
+			err := state.readMessage()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -160,16 +165,16 @@ func (t *Torrent) startDownloadWorker(ctx context.Context, peer peers.Peer, work
 	c.SendUnchoke()
 	c.SendInterested()
 
-	for pw := range workQueue {
+	for {
 		select{
 		case <-ctx.Done():
 			return
-		default:
+		case pw := <- workQueue:
 			if !c.Bitfield.HasPiece(pw.index) {
 				workQueue <- pw
 				continue
 			}
-			buf, err := attemptDownloadPiece(c, pw)
+			buf, err := attemptDownloadPiece(ctx, c, pw)
 			if err != nil {
 				WriteToLog(fmt.Sprint("Exiting: ", err))
 				workQueue <- pw
@@ -269,6 +274,7 @@ func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error)
 	for i := range t.Files {
 		t.Files[i].Handler.Close()
 	}
+	cancel()
 	wg.Wait()
 
 	close(workQueue)
