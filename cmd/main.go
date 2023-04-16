@@ -42,6 +42,10 @@ func createAllParentDirs(p string) (*os.File, error) {
     return os.Create(p)
 }
 
+func (s *Settings) makeMetaName(name string) string {
+	return filepath.Join(s.ConfigPath, name+"_meta.meta")
+}
+
 func (s *Settings) AddTorent(path string) {
 	tf := torrentmeta.New(path, GlobalSettings.DownloadPath)
 	for i := range tf.Files{
@@ -54,8 +58,26 @@ func (s *Settings) AddTorent(path string) {
 			panic(err)
 		}
 	}
-	tf.Save(filepath.Join(GlobalSettings.ConfigPath, tf.Name+"meta.meta"))
+	tf.Save(GlobalSettings.makeMetaName(tf.Name))
 	s.Torrents = append(s.Torrents, tf)
+}
+
+func (s *Settings) LoadTorrents() {
+	entries, err := os.ReadDir(s.ConfigPath)
+	if err != nil {
+		panic(err)
+	}
+	for _, e := range entries {
+		var tf torrentmeta.TorrentFile
+		tf.Load(filepath.Join(s.ConfigPath, e.Name()))
+		s.Torrents = append(s.Torrents, tf)
+	}
+}
+
+func (s *Settings) RemoveTorrent(index int) {
+	metaName := s.makeMetaName(s.Torrents[index].Name)
+	s.stopTorrent(index)
+	os.Remove(metaName)
 }
 
 func createDir(path string){
@@ -67,7 +89,7 @@ func createDir(path string){
 	}
 }
 
-func (s *Settings) endAllTorrents() {
+func (s *Settings) signalToStopAllTorrents() {
 	for i := range s.Torrents {
 		s.Torrents[i].Done <- struct{}{}
 	}
@@ -81,8 +103,9 @@ func (s *Settings) startTorrent(index int) {
 	}()
 }
 
-func (s *Settings) endTorrent(index int) {
+func (s *Settings) stopTorrent(index int) {
 	s.Torrents[index].Done <- struct{}{}
+	<- s.Torrents[index].Out
 	s.Torrents = append(s.Torrents[:index], s.Torrents[index+1:]...)
 }
 

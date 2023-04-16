@@ -31,6 +31,7 @@ type TorrentFile struct {
 	Downloaded int
 	Uploaded   int
 	Done       chan struct{}
+	Out        chan struct{}
 }
 
 func New(path string, downloadPath string) TorrentFile {
@@ -146,5 +147,6 @@ func (tf *TorrentFile) DownloadToFile() error {
 		return err
 	}
 
+	tf.Out <- struct{}{}
 	return nil
 }
