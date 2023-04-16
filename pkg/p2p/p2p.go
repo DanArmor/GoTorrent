@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -206,7 +205,7 @@ func (t *Torrent) writeToFile(pr pieceResult) {
 	}
 }
 
-func (t *Torrent) Download(done chan struct{}) (int, error) {
+func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error) {
 	log.Printf("Starting downloading <%s>", t.Name)
 	workQueue := make(chan *pieceWork, len(t.PieceHashes))
 	results := make(chan *pieceResult, len(t.PieceHashes)/4)
@@ -236,15 +235,12 @@ func (t *Torrent) Download(done chan struct{}) (int, error) {
 			res := <-results
 			t.writeToFile(*res)
 			donePieces++
+			count <- struct{}{}
 			t.Bitfield.SetPiece(res.index)
-			
-			percent := float64(donePieces) / float64(len(t.PieceHashes)) * 100
-			numWorkers := runtime.NumGoroutine() - 1
-			log.Printf("(%0.2f%%) Downloaded piece %d from %d peers", percent, res.index, numWorkers)
 		}
-
 	}
 	close(workQueue)
+	close(count)
 	wg.Wait()
 	return donePieces, nil
 }

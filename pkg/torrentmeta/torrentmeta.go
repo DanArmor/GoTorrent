@@ -31,7 +31,9 @@ type TorrentFile struct {
 	Downloaded int
 	Uploaded   int
 	Done       chan struct{}
+	Count      chan struct{}
 	Out        chan struct{}
+	InProgress bool
 }
 
 func New(path string, downloadPath string) TorrentFile {
@@ -47,6 +49,8 @@ func New(path string, downloadPath string) TorrentFile {
 		tfm.Files[i].FullPath = filepath.Join(downloadPath, tfm.Files[i].FullPath)
 	}
 	tfm.Done = make(chan struct{})
+	tfm.Out = make(chan struct{})
+	tfm.Count = make(chan struct{})
 	return tfm
 }
 
@@ -73,6 +77,9 @@ func (tf *TorrentFile) Load(path string) {
 	if err != nil {
 		panic(err)
 	}
+	tf.Done = make(chan struct{})
+	tf.Out = make(chan struct{})
+	tf.Count = make(chan struct{})
 }
 
 func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, error) {
@@ -141,8 +148,10 @@ func (tf *TorrentFile) DownloadToFile() error {
 		Length:      tf.Length,
 	}
 
-	pieces, err := torrent.Download(tf.Done)
-	tf.Downloaded += pieces
+	_, err = torrent.Download(tf.Done, tf.Count)
+	for range tf.Count {
+		tf.Downloaded++
+	}
 	if err != nil {
 		return err
 	}

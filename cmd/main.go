@@ -1,13 +1,13 @@
 package main
 
 import (
-	// "fmt"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/DanArmor/GoTorrent/pkg/torrentmeta"
-	// tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func min(a, b int) int {
@@ -109,6 +109,18 @@ func (s *Settings) stopTorrent(index int) {
 	s.Torrents = append(s.Torrents[:index], s.Torrents[index+1:]...)
 }
 
+func formatBytes(size int) string {
+    units := []string{"B", "KB", "MB", "GB", "TB"}
+    var i int
+
+    for size >= 1024 && i < len(units)-1 {
+        size /= 1024
+        i++
+    }
+
+    return fmt.Sprintf("%d %s", size, units[i])
+}
+
 func main() {
 	dir, err := os.UserConfigDir()
 	if err != nil {
@@ -122,11 +134,14 @@ func main() {
 	}
 	GlobalSettings.DownloadPath = filepath.Join(dir, "Downloads")
 
-	//AddTorent("testFolder.torrent")
+	//GlobalSettings.AddTorent("testFolder.torrent")
+	GlobalSettings.LoadTorrents()
 
-	// m := NewModel()
-	// if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
-	// 	fmt.Println("Error during running program:", err)
-	// 	os.Exit(1)
-	// }
+	m := NewModel()
+	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
+		fmt.Println("Error during running program:", err)
+		fmt.Println("Wait for goroutines")
+		GlobalSettings.Wg.Wait()
+		os.Exit(1)
+	}
 }
