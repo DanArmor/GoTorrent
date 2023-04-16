@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"os"
@@ -112,7 +113,7 @@ func attemptDownloadPiece(c *client.Client, pw *pieceWork) ([]byte, error) {
 		client: c,
 		buf:    make([]byte, pw.length),
 	}
-	c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
+	c.Conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
 	defer c.Conn.SetDeadline(time.Time{})
 
 	for state.downloaded < pw.length {
@@ -147,7 +148,7 @@ func checkIntegrity(pw *pieceWork, buf []byte) error {
 	return nil
 }
 
-func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork, results chan *pieceResult) {
+func (t *Torrent) startDownloadWorker(ctx context.Context, peer peers.Peer, workQueue chan *pieceWork, results chan *pieceResult) {
 	c, err := client.New(peer, t.PeerID, t.InfoHash)
 	if err != nil {
 		WriteToLog(fmt.Sprintf("Could not handshake with %s. Disconnected", peer.IP))
@@ -160,24 +161,29 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 	c.SendInterested()
 
 	for pw := range workQueue {
-		if !c.Bitfield.HasPiece(pw.index) {
-			workQueue <- pw
-			continue
-		}
-		buf, err := attemptDownloadPiece(c, pw)
-		if err != nil {
-			WriteToLog(fmt.Sprint("Exiting: ", err))
-			workQueue <- pw
+		select{
+		case <-ctx.Done():
 			return
+		default:
+			if !c.Bitfield.HasPiece(pw.index) {
+				workQueue <- pw
+				continue
+			}
+			buf, err := attemptDownloadPiece(c, pw)
+			if err != nil {
+				WriteToLog(fmt.Sprint("Exiting: ", err))
+				workQueue <- pw
+				return
+			}
+			err = checkIntegrity(pw, buf)
+			if err != nil {
+				WriteToLog(fmt.Sprintf("Piece %d failed integrity check", pw.index))
+				workQueue <- pw
+				continue
+			}
+			c.SendHave(pw.index)
+			results <- &pieceResult{index: pw.index, buf: buf}
 		}
-		err = checkIntegrity(pw, buf)
-		if err != nil {
-			WriteToLog(fmt.Sprintf("Piece %d failed integrity check", pw.index))
-			workQueue <- pw
-			continue
-		}
-		c.SendHave(pw.index)
-		results <- &pieceResult{index: pw.index, buf: buf}
 	}
 }
 
@@ -225,27 +231,32 @@ func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error)
 	WriteToLog(fmt.Sprintf("Starting downloading <%s>", t.Name))
 	workQueue := make(chan *pieceWork, len(t.PieceHashes))
 	results := make(chan *pieceResult, len(t.PieceHashes)/4)
+	donePieces := len(t.PieceHashes)
 	for index, hash := range t.PieceHashes {
 		if !t.Bitfield.HasPiece(index){
 			length := t.calculatePieceSize(index)
 			workQueue <- &pieceWork{index, hash, length}
+			donePieces--
 		}
 	}
 	
 	var wg sync.WaitGroup
 
+	WriteToLog(fmt.Sprintf("Peers: %d", len(t.Peers)))
+	ctx, cancel := context.WithCancel(context.Background())
 	for _, peer := range t.Peers {
 		wg.Add(1)
 		go func(p peers.Peer){
 			defer wg.Done()
-			t.startDownloadWorker(p, workQueue, results)
+			t.startDownloadWorker(ctx, p, workQueue, results)
 		}(peer)
 	}
-	donePieces := 0
+
 	out:
 	for donePieces < len(t.PieceHashes) {
 		select {
 		case <- done:
+			cancel()
 			break out
 		default:
 			res := <-results
@@ -255,11 +266,12 @@ func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error)
 			t.Bitfield.SetPiece(res.index)
 		}
 	}
-	close(workQueue)
-	close(count)
-	wg.Wait()
 	for i := range t.Files {
 		t.Files[i].Handler.Close()
 	}
+	wg.Wait()
+
+	close(workQueue)
+	close(count)
 	return donePieces, nil
 }

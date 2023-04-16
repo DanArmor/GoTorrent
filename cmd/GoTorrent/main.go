@@ -99,6 +99,9 @@ func (s *Settings) stopAllTorrents() {
 func (s *Settings) startTorrent(index int) {
 	s.Wg.Add(1)
 	s.Torrents[index].InProgress = true
+	s.Torrents[index].Count = make(chan struct{})
+	s.Torrents[index].Done = make(chan struct{})
+	s.Torrents[index].Out = make(chan struct{})
 	go func() {
 		defer s.Wg.Done()
 		s.Torrents[index].DownloadToFile()
@@ -149,4 +152,6 @@ func main() {
 		GlobalSettings.Wg.Wait()
 		os.Exit(1)
 	}
+	GlobalSettings.stopAllTorrents()
+	GlobalSettings.Wg.Wait()
 }

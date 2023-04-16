@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/DanArmor/GoTorrent/pkg/bitfield"
@@ -58,12 +57,9 @@ func New(path string, downloadPath string) TorrentFile {
 }
 
 func (tf *TorrentFile) Save(path string) {
-	f, err := os.Open(path)
+	f, err := os.OpenFile(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0644)
 	if err != nil {
-		f, err = os.Create(path)
-		if err != nil {
-			panic(err)
-		}
+		panic(err)
 	}
 	err = gob.NewEncoder(f).Encode(tf)
 	if err != nil {
@@ -110,11 +106,6 @@ func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) (
 	if err != nil {
 		return nil, err
 	}
-	
-	p2p.WriteToLog(url.QueryEscape(string(tf.InfoHash[:])))
-	p2p.WriteToLog(url.QueryEscape(string(peerID[:])))
-	p2p.WriteToLog(trackerUrl)
-
 	c := &http.Client{Timeout: 15 * time.Second}
 	resp, err := c.Get(trackerUrl)
 	if err != nil {
@@ -145,7 +136,7 @@ func (tf *TorrentFile) DownloadToFile() error {
 	var p2pFiles []p2p.File
 
 	for i := range tf.Files {
-		f, err := os.Open(tf.Files[i].FullPath)
+		f, err := os.OpenFile(tf.Files[i].FullPath, os.O_RDWR, 0644)
 		if err != nil {
 			panic(err)
 		}
@@ -163,17 +154,13 @@ func (tf *TorrentFile) DownloadToFile() error {
 		Length:      tf.Length,
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		_, err = torrent.Download(tf.Done, tf.Count)
+		torrent.Download(tf.Done, tf.Count)
 	}()
 
 	for range tf.Count {
 		tf.Downloaded++
 	}
-	wg.Wait()
 	tf.Out <- struct{}{}
 	return nil
 }

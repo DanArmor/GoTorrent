@@ -22,6 +22,19 @@ type Client struct {
 	peerID   [utils.PeerIDLen]byte
 }
 
+func CheckHandshake(peer peers.Peer, peerID [utils.PeerIDLen]byte, infoHash [utils.InfoHashLen]byte) error {
+	conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
+	if err != nil {
+		return err
+	}
+	_, err = completeHandshake(conn, infoHash, peerID)
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	return nil
+}
+
 func New(peer peers.Peer, peerID [utils.PeerIDLen]byte, infoHash [utils.InfoHashLen]byte) (*Client, error) {
 	conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
 	if err != nil {

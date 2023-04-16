@@ -170,7 +170,7 @@ func NewModel() model {
 type tickMsg time.Time
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -237,11 +237,10 @@ func (m model) UpdateMainScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
 		case "p":
-			GlobalSettings.Torrents[m.t.Cursor()].InProgress = !GlobalSettings.Torrents[m.t.Cursor()].InProgress
 			if GlobalSettings.Torrents[m.t.Cursor()].InProgress {
-				GlobalSettings.startTorrent(m.t.Cursor())
-			} else {
 				GlobalSettings.stopTorrent(m.t.Cursor())
+			} else {
+				GlobalSettings.startTorrent(m.t.Cursor())
 			}
 			m.RedrawRows()
 			return m, nil
@@ -296,7 +295,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.RedrawRows()
 		m.mv.SetContent(p2p.GetLogString())
-		m.mv.GotoBottom()
 		return m, tickCmd()
 	}
 
@@ -344,7 +342,7 @@ func (m model) mainScreenView() string {
 
 func (m model) torrentViewScreenView() string {
 	tf := GlobalSettings.Torrents[m.t.Cursor()]
-	m.v.SetContent(strings.Join([]string{tf.Name, tf.Announce, hex.EncodeToString(tf.InfoHash[:])}, "\n"))
+	m.v.SetContent(strings.Join([]string{tf.Name, tf.Announce, hex.EncodeToString(tf.InfoHash[:]), strconv.Itoa(len(tf.PieceHashes))}, "\n"))
 	m.v.GotoBottom()
 	return m.v.View()
 }
