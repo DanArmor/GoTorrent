@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -115,11 +116,11 @@ func attemptDownloadPiece(ctx context.Context, c *client.Client, pw *pieceWork) 
 	}
 	c.Conn.SetDeadline(time.Now().Add(1 * time.Second))
 	defer c.Conn.SetDeadline(time.Time{})
-
+	timeoutCounter := 5
 	for state.downloaded < pw.length {
 		select {
-		case <- ctx.Done():
-			return nil, fmt.Errorf("Stopped by context")
+		case <-ctx.Done():
+			return nil, fmt.Errorf("stopped by context")
 		default:
 			if !state.client.Choked {
 				for state.backlog < MaxBacklog && state.requested < pw.length {
@@ -129,6 +130,11 @@ func attemptDownloadPiece(ctx context.Context, c *client.Client, pw *pieceWork) 
 					}
 					err := c.SendRequest(pw.index, state.requested, blockSize)
 					if err != nil {
+						if err, ok := err.(net.Error); ok && err.Timeout() && timeoutCounter != 0 {
+							c.Conn.SetDeadline(time.Now().Add(1 * time.Second))
+							timeoutCounter--
+							continue
+						}
 						return nil, err
 					}
 					state.backlog++
@@ -137,6 +143,11 @@ func attemptDownloadPiece(ctx context.Context, c *client.Client, pw *pieceWork) 
 			}
 			err := state.readMessage()
 			if err != nil {
+				if err, ok := err.(net.Error); ok && err.Timeout() && timeoutCounter != 0 {
+					c.Conn.SetDeadline(time.Now().Add(1 * time.Second))
+					timeoutCounter--
+					continue
+				}
 				return nil, err
 			}
 		}
@@ -166,10 +177,10 @@ func (t *Torrent) startDownloadWorker(ctx context.Context, peer peers.Peer, work
 	c.SendInterested()
 
 	for {
-		select{
+		select {
 		case <-ctx.Done():
 			return
-		case pw := <- workQueue:
+		case pw := <-workQueue:
 			if !c.Bitfield.HasPiece(pw.index) {
 				workQueue <- pw
 				continue
@@ -232,52 +243,52 @@ func (t *Torrent) writeToFile(pr pieceResult) {
 	}
 }
 
-func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error) {
+func (t *Torrent) Download(done chan struct{}, count chan int) {
 	WriteToLog(fmt.Sprintf("Starting downloading <%s>", t.Name))
 	workQueue := make(chan *pieceWork, len(t.PieceHashes))
 	results := make(chan *pieceResult, len(t.PieceHashes)/4)
 	donePieces := len(t.PieceHashes)
 	for index, hash := range t.PieceHashes {
-		if !t.Bitfield.HasPiece(index){
+		if !t.Bitfield.HasPiece(index) {
 			length := t.calculatePieceSize(index)
 			workQueue <- &pieceWork{index, hash, length}
 			donePieces--
 		}
 	}
-	
+	if donePieces == len(t.PieceHashes) {
+		return
+	}
+
 	var wg sync.WaitGroup
 
 	WriteToLog(fmt.Sprintf("Peers: %d", len(t.Peers)))
 	ctx, cancel := context.WithCancel(context.Background())
 	for _, peer := range t.Peers {
 		wg.Add(1)
-		go func(p peers.Peer){
+		go func(p peers.Peer) {
 			defer wg.Done()
 			t.startDownloadWorker(ctx, p, workQueue, results)
 		}(peer)
 	}
 
-	out:
+out:
 	for donePieces < len(t.PieceHashes) {
 		select {
-		case <- done:
+		case <-done:
 			cancel()
 			break out
-		default:
-			res := <-results
+		case res := <-results:
 			t.writeToFile(*res)
 			donePieces++
-			count <- struct{}{}
+			count <- res.index
 			t.Bitfield.SetPiece(res.index)
 		}
 	}
+	cancel()
 	for i := range t.Files {
 		t.Files[i].Handler.Close()
 	}
-	cancel()
 	wg.Wait()
-
 	close(workQueue)
 	close(count)
-	return donePieces, nil
 }

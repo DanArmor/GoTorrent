@@ -97,14 +97,22 @@ func (s *Settings) stopAllTorrents() {
 }
 
 func (s *Settings) startTorrent(index int) {
+	if s.Torrents[index].Downloaded == len(s.Torrents[index].PieceHashes) {
+		return
+	}
 	s.Wg.Add(1)
 	s.Torrents[index].InProgress = true
-	s.Torrents[index].Count = make(chan struct{})
+	s.Torrents[index].Count = make(chan int)
 	s.Torrents[index].Done = make(chan struct{})
 	s.Torrents[index].Out = make(chan struct{})
 	go func() {
 		defer s.Wg.Done()
 		s.Torrents[index].DownloadToFile()
+		if len(s.Torrents[index].PieceHashes) == s.Torrents[index].Downloaded {
+			s.Torrents[index].IsDone = true
+			s.Torrents[index].InProgress = false
+			s.Torrents[index].Save(s.makeMetaName(s.Torrents[index].Name))
+		}
 	}()
 }
 

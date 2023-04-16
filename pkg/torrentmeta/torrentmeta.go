@@ -32,7 +32,7 @@ type TorrentFile struct {
 	Downloaded int
 	Uploaded   int
 	Done       chan struct{}
-	Count      chan struct{}
+	Count      chan int
 	Out        chan struct{}
 	InProgress bool
 	IsDone     bool
@@ -52,12 +52,12 @@ func New(path string, downloadPath string) TorrentFile {
 	}
 	tfm.Done = make(chan struct{})
 	tfm.Out = make(chan struct{})
-	tfm.Count = make(chan struct{})
+	tfm.Count = make(chan int)
 	return tfm
 }
 
 func (tf *TorrentFile) Save(path string) {
-	f, err := os.OpenFile(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -79,7 +79,7 @@ func (tf *TorrentFile) Load(path string) {
 	}
 	tf.Done = make(chan struct{})
 	tf.Out = make(chan struct{})
-	tf.Count = make(chan struct{})
+	tf.Count = make(chan int)
 	f.Close()
 }
 
@@ -152,15 +152,19 @@ func (tf *TorrentFile) DownloadToFile() error {
 		Files:       p2pFiles,
 		Name:        tf.Name,
 		Length:      tf.Length,
+		Bitfield:    tf.Bitfield,
 	}
 
 	go func() {
 		torrent.Download(tf.Done, tf.Count)
 	}()
 
-	for range tf.Count {
+	for index := range tf.Count {
 		tf.Downloaded++
+		tf.Bitfield.SetPiece(index)
 	}
-	tf.Out <- struct{}{}
+	if tf.Downloaded != len(tf.PieceHashes) {
+		tf.Out <- struct{}{}
+	}
 	return nil
 }
