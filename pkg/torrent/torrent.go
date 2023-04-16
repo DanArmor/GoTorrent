@@ -10,9 +10,9 @@ type File struct {
 	Length   int      `bencode:"length"`
 	Path     []string `bencode:"path"`
 	PathUtf8 []string `bencode:"path.utf-8,omitempty"`
-	FullPath string
-	Begin    int
-	End      int
+	FullPath string   `bencode:"-"`
+	Begin    int      `bencode:"-"`
+	End      int      `bencode:"-"`
 }
 
 type TorrentFile struct {

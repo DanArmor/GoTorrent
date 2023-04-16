@@ -49,14 +49,14 @@ func (s *Settings) makeMetaName(name string) string {
 func (s *Settings) AddTorent(path string) {
 	tf := torrentmeta.New(path, GlobalSettings.DownloadPath)
 	for i := range tf.Files{
-		createAllParentDirs(tf.Files[i].FullPath)
-		f, err := os.Create(tf.Files[i].FullPath)
+		f, err := createAllParentDirs(tf.Files[i].FullPath)
 		if err != nil {
 			panic(err)
 		}
 		if err := f.Truncate(int64(tf.Files[i].Length)); err != nil {
 			panic(err)
 		}
+		f.Close()
 	}
 	tf.Save(GlobalSettings.makeMetaName(tf.Name))
 	s.Torrents = append(s.Torrents, tf)
@@ -77,6 +77,7 @@ func (s *Settings) LoadTorrents() {
 func (s *Settings) RemoveTorrent(index int) {
 	metaName := s.makeMetaName(s.Torrents[index].Name)
 	s.stopTorrent(index)
+	s.Torrents = append(s.Torrents[:index], s.Torrents[index+1:]...)
 	os.Remove(metaName)
 }
 
@@ -89,14 +90,15 @@ func createDir(path string){
 	}
 }
 
-func (s *Settings) signalToStopAllTorrents() {
+func (s *Settings) stopAllTorrents() {
 	for i := range s.Torrents {
-		s.Torrents[i].Done <- struct{}{}
+		s.stopTorrent(i)
 	}
 }
 
 func (s *Settings) startTorrent(index int) {
 	s.Wg.Add(1)
+	s.Torrents[index].InProgress = true
 	go func() {
 		defer s.Wg.Done()
 		s.Torrents[index].DownloadToFile()
@@ -104,9 +106,12 @@ func (s *Settings) startTorrent(index int) {
 }
 
 func (s *Settings) stopTorrent(index int) {
-	s.Torrents[index].Done <- struct{}{}
-	<- s.Torrents[index].Out
-	s.Torrents = append(s.Torrents[:index], s.Torrents[index+1:]...)
+	if s.Torrents[index].InProgress {
+		s.Torrents[index].Done <- struct{}{}
+		<- s.Torrents[index].Out
+		s.Torrents[index].InProgress = false
+		s.Torrents[index].Save(s.makeMetaName(s.Torrents[index].Name))
+	}
 }
 
 func formatBytes(size int) string {
@@ -134,13 +139,13 @@ func main() {
 	}
 	GlobalSettings.DownloadPath = filepath.Join(dir, "Downloads")
 
-	//GlobalSettings.AddTorent("testFolder.torrent")
 	GlobalSettings.LoadTorrents()
 
 	m := NewModel()
 	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Println("Error during running program:", err)
 		fmt.Println("Wait for goroutines")
+		GlobalSettings.stopAllTorrents()
 		GlobalSettings.Wg.Wait()
 		os.Exit(1)
 	}

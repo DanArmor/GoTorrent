@@ -11,14 +11,14 @@ import (
 )
 
 type bencodeInfoV1 struct {
-	Pieces      string `bencode:"pieces"`
-	PieceLength int    `bencode:"piece length"`
-	Length      int    `bencode:"length,omitempty"`
+	Files       []File `bencode:"files,omitempty"`
 	Name        string `bencode:"name"`
 	NameUtf8    string `bencode:"name.utf-8,omitempty"`
-	Private     *bool  `bencode:"private,omitempty"`
+	PieceLength int    `bencode:"piece length"`
+	Pieces      string `bencode:"pieces"`
 	Source      string `bencode:"source,omitempty"`
-	Files       []File `bencode:"files,omitempty"`
+	Length      int    `bencode:"length,omitempty"`
+	Private     *bool  `bencode:"private,omitempty"`
 }
 
 type bencodeTorrentV1 struct {

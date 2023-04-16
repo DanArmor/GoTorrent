@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
-	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,9 +21,25 @@ const MaxBlockSize = 16384
 
 const MaxBacklog = 5
 
+var LogStrings []string
+var LogMU sync.RWMutex
+
+func WriteToLog(str string) {
+	LogMU.Lock()
+	LogStrings = append(LogStrings, str)
+	LogMU.Unlock()
+}
+
+func GetLogString() string {
+	LogMU.RLock()
+	str := strings.Join(LogStrings, "\n")
+	LogMU.RUnlock()
+	return str
+}
+
 type File struct {
 	torrent.File
-	handler *os.File
+	Handler *os.File
 }
 
 type Torrent struct {
@@ -134,11 +150,11 @@ func checkIntegrity(pw *pieceWork, buf []byte) error {
 func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork, results chan *pieceResult) {
 	c, err := client.New(peer, t.PeerID, t.InfoHash)
 	if err != nil {
-		log.Printf("Could not handshake with %s. Disconnected", peer.IP)
+		WriteToLog(fmt.Sprintf("Could not handshake with %s. Disconnected", peer.IP))
 		return
 	}
 	defer c.Conn.Close()
-	log.Printf("Completed handshake with %s", peer.IP)
+	WriteToLog(fmt.Sprintf("Completed handshake with %s", peer.IP))
 
 	c.SendUnchoke()
 	c.SendInterested()
@@ -150,13 +166,13 @@ func (t *Torrent) startDownloadWorker(peer peers.Peer, workQueue chan *pieceWork
 		}
 		buf, err := attemptDownloadPiece(c, pw)
 		if err != nil {
-			log.Print("Exiting", err)
+			WriteToLog(fmt.Sprint("Exiting: ", err))
 			workQueue <- pw
 			return
 		}
 		err = checkIntegrity(pw, buf)
 		if err != nil {
-			log.Printf("Piece %d failed integrity check", pw.index)
+			WriteToLog(fmt.Sprintf("Piece %d failed integrity check", pw.index))
 			workQueue <- pw
 			continue
 		}
@@ -196,7 +212,7 @@ func (t *Torrent) writeToFile(pr pieceResult) {
 		if endInFile > t.Files[i].Length {
 			endInFile = t.Files[i].Length
 		}
-		t.Files[i].handler.WriteAt(pr.buf[wrote:wrote+endInFile-startInFile], int64(startInFile))
+		t.Files[i].Handler.WriteAt(pr.buf[wrote:wrote+endInFile-startInFile], int64(startInFile))
 		wrote += endInFile - startInFile
 		pieceLength -= wrote
 		if pieceLength == 0 {
@@ -206,7 +222,7 @@ func (t *Torrent) writeToFile(pr pieceResult) {
 }
 
 func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error) {
-	log.Printf("Starting downloading <%s>", t.Name)
+	WriteToLog(fmt.Sprintf("Starting downloading <%s>", t.Name))
 	workQueue := make(chan *pieceWork, len(t.PieceHashes))
 	results := make(chan *pieceResult, len(t.PieceHashes)/4)
 	for index, hash := range t.PieceHashes {
@@ -242,5 +258,8 @@ func (t *Torrent) Download(done chan struct{}, count chan struct{}) (int, error)
 	close(workQueue)
 	close(count)
 	wg.Wait()
+	for i := range t.Files {
+		t.Files[i].Handler.Close()
+	}
 	return donePieces, nil
 }

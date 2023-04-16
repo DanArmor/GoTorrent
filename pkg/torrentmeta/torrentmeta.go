@@ -3,11 +3,13 @@ package torrentmeta
 import (
 	"crypto/rand"
 	"encoding/gob"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DanArmor/GoTorrent/pkg/bitfield"
@@ -34,6 +36,7 @@ type TorrentFile struct {
 	Count      chan struct{}
 	Out        chan struct{}
 	InProgress bool
+	IsDone     bool
 }
 
 func New(path string, downloadPath string) TorrentFile {
@@ -66,6 +69,7 @@ func (tf *TorrentFile) Save(path string) {
 	if err != nil {
 		panic(err)
 	}
+	f.Close()
 }
 
 func (tf *TorrentFile) Load(path string) {
@@ -80,6 +84,7 @@ func (tf *TorrentFile) Load(path string) {
 	tf.Done = make(chan struct{})
 	tf.Out = make(chan struct{})
 	tf.Count = make(chan struct{})
+	f.Close()
 }
 
 func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, error) {
@@ -91,23 +96,27 @@ func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, er
 		"info_hash":  []string{string(tf.InfoHash[:])},
 		"peer_id":    []string{string(peerID[:])},
 		"port":       []string{strconv.Itoa(int(port))},
-		"uploaded":   []string{strconv.Itoa(int(tf.Uploaded))},
-		"downloaded": []string{strconv.Itoa(int(tf.Downloaded))},
+		"uploaded":   []string{"0"},
+		"downloaded": []string{"0"},
 		"compact":    []string{"1"},
-		"left":       []string{strconv.Itoa(tf.Downloaded - tf.Length)},
+		"left":       []string{strconv.Itoa(tf.Length)},
 	}
 	base.RawQuery = params.Encode()
 	return base.String(), nil
 }
 
 func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) ([]peers.Peer, error) {
-	url, err := tf.buildTrackerURL(peerID, port)
+	trackerUrl, err := tf.buildTrackerURL(peerID, port)
 	if err != nil {
 		return nil, err
 	}
+	
+	p2p.WriteToLog(url.QueryEscape(string(tf.InfoHash[:])))
+	p2p.WriteToLog(url.QueryEscape(string(peerID[:])))
+	p2p.WriteToLog(trackerUrl)
 
 	c := &http.Client{Timeout: 15 * time.Second}
-	resp, err := c.Get(url)
+	resp, err := c.Get(trackerUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -128,13 +137,19 @@ func (tf *TorrentFile) DownloadToFile() error {
 		return err
 	}
 	peers, err := tf.requestPeers(peerID, Port)
+	p2p.WriteToLog(fmt.Sprint(peers))
 	if err != nil {
 		return err
 	}
 
 	var p2pFiles []p2p.File
+
 	for i := range tf.Files {
-		p2pFiles = append(p2pFiles, p2p.File{File: tf.Files[i]})
+		f, err := os.Open(tf.Files[i].FullPath)
+		if err != nil {
+			panic(err)
+		}
+		p2pFiles = append(p2pFiles, p2p.File{File: tf.Files[i], Handler: f})
 	}
 
 	torrent := p2p.Torrent{
@@ -148,14 +163,17 @@ func (tf *TorrentFile) DownloadToFile() error {
 		Length:      tf.Length,
 	}
 
-	_, err = torrent.Download(tf.Done, tf.Count)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err = torrent.Download(tf.Done, tf.Count)
+	}()
+
 	for range tf.Count {
 		tf.Downloaded++
 	}
-	if err != nil {
-		return err
-	}
-
+	wg.Wait()
 	tf.Out <- struct{}{}
 	return nil
 }
