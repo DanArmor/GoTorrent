@@ -163,6 +163,9 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 		}
 		if n != t.PieceLength {
 			for {
+				if fileIndex == len(t.Files){
+					return false
+				}
 				r, err := handlers[fileIndex].Read(buf[n+1:])
 				if err != io.EOF{
 					panic(err)
