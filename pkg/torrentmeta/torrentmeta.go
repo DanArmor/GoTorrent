@@ -1,9 +1,12 @@
 package torrentmeta
 
 import (
+	"bytes"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -119,6 +122,73 @@ func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) (
 		return nil, err
 	}
 	return peers.Unmarshal([]byte(trackerResp.Peers))
+}
+
+func (t *TorrentFile) calculateBoundsForPiece(index int) (begin int, end int) {
+	begin = index * t.PieceLength
+	end = begin + t.PieceLength
+	if end > t.Files[len(t.Files)-1].End {
+		end = t.Files[len(t.Files)-1].End
+	}
+	return begin, end
+}
+
+func (t *TorrentFile) calculatePieceSize(index int) int {
+	begin, end := t.calculateBoundsForPiece(index)
+	return end - begin
+}
+
+func (t *TorrentFile) CheckFilesIntegrity() bool {
+	var err error
+	fileIndex := 0
+	handlers := make([]*os.File, len(t.Files))
+	for i := range handlers {
+		handlers[i], err = os.Open(t.Files[i].FullPath)
+		if err != nil {
+			panic(err)
+		}
+		defer func(index int) {
+			handlers[index].Close()
+		}(i)
+	}
+	buf := make([]byte, t.PieceLength)
+	for i := range t.PieceHashes {
+		n, err := handlers[fileIndex].Read(buf)
+		if err != nil {
+			if err != io.EOF{
+				panic(err)
+			} else{
+				fileIndex++
+			}
+		}
+		if n != t.PieceLength {
+			for {
+				r, err := handlers[fileIndex].Read(buf[n+1:])
+				if err != io.EOF{
+					panic(err)
+				} else{
+					fileIndex++
+				}
+				n += r
+				if n == t.PieceLength {
+					break
+				}
+			}
+		} else{
+			if !t.CheckIntegrity(t.PieceHashes[i], buf) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (t *TorrentFile) CheckIntegrity(pw [utils.PieceHashLen]byte, buf []byte) bool {
+	hash := sha1.Sum(buf)
+	if !bytes.Equal(hash[:], pw[:]) {
+		return false
+	}
+	return true
 }
 
 func (tf *TorrentFile) DownloadToFile() error {

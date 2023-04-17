@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/DanArmor/GoTorrent/pkg/p2p"
 	"github.com/DanArmor/GoTorrent/pkg/torrentmeta"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -48,15 +50,34 @@ func (s *Settings) makeMetaName(name string) string {
 
 func (s *Settings) AddTorent(path string) {
 	tf := torrentmeta.New(path, GlobalSettings.DownloadPath)
+
+	allFilesExist := true
 	for i := range tf.Files{
-		f, err := createAllParentDirs(tf.Files[i].FullPath)
-		if err != nil {
-			panic(err)
+		if fi, err := os.Stat(tf.Files[i].FullPath); errors.Is(err, os.ErrNotExist) || fi.Size() != int64(tf.Files[i].Length) {
+			allFilesExist = false
+			break
 		}
-		if err := f.Truncate(int64(tf.Files[i].Length)); err != nil {
-			panic(err)
+	}
+
+	if allFilesExist{
+		p2p.WriteToLog("All files exist")
+		if tf.CheckFilesIntegrity() {
+			for i := range tf.PieceHashes {
+				tf.Bitfield.SetPiece(i)
+			}
+			tf.IsDone = true
 		}
-		f.Close()
+	} else{
+		for i := range tf.Files{
+			f, err := createAllParentDirs(tf.Files[i].FullPath)
+			if err != nil {
+				panic(err)
+			}
+			if err := f.Truncate(int64(tf.Files[i].Length)); err != nil {
+				panic(err)
+			}
+			f.Close()
+		}
 	}
 	tf.Save(GlobalSettings.makeMetaName(tf.Name))
 	s.Torrents = append(s.Torrents, tf)
@@ -97,7 +118,7 @@ func (s *Settings) stopAllTorrents() {
 }
 
 func (s *Settings) startTorrent(index int) {
-	if s.Torrents[index].Downloaded == len(s.Torrents[index].PieceHashes) {
+	if s.Torrents[index].IsDone {
 		return
 	}
 	s.Wg.Add(1)

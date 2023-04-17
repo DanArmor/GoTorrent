@@ -95,6 +95,7 @@ func CreateTable() table.Model {
 		{Title: "Size", Width: 16},
 		{Title: "Status", Width: 16},
 		{Title: "Progress", Width: 16},
+		{Title: "Done", Width: 4},
 	}
 
 	var rows []table.Row
@@ -139,8 +140,14 @@ func (m *model) RedrawRows() {
 		} else {
 			status = "Stopped"
 		}
+		isDone := ""
+		if GlobalSettings.Torrents[i].IsDone {
+			isDone = "Yes"
+		} else {
+			isDone = "No"
+		}
 		rows = append(rows, table.Row{
-			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize), status, strconv.Itoa(GlobalSettings.Torrents[i].Downloaded),
+			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize), status, strconv.Itoa(GlobalSettings.Torrents[i].Downloaded), isDone,
 		})
 	}
 	m.t.SetRows(rows)
