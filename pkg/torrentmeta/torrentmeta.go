@@ -150,7 +150,7 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 		if n != t.PieceLength {
 			for {
 				if fileIndex == len(t.Files){
-					return false
+					return t.CheckIntegrity(t.PieceHashes[i], buf)
 				}
 				r, err := handlers[fileIndex].Read(buf[n+1:])
 				if err != io.EOF{
@@ -163,10 +163,9 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 					break
 				}
 			}
-		} else{
-			if !t.CheckIntegrity(t.PieceHashes[i], buf) {
+		}
+		if !t.CheckIntegrity(t.PieceHashes[i], buf) {
 				return false
-			}
 		}
 	}
 	return true
