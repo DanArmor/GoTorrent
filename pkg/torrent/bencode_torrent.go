@@ -22,8 +22,10 @@ type bencodeInfoV1 struct {
 }
 
 type bencodeTorrentV1 struct {
-	Announce string        `bencode:"announce"`
-	Info     bencodeInfoV1 `bencode:"info"`
+	Announce  string        `bencode:"announce"`
+	Info      bencodeInfoV1 `bencode:"info"`
+	CreatedBy string        `bencode:"created by,omitempty"`
+	Comment   string        `bencode:"comment,omitempty"`
 }
 
 func (bi *bencodeInfoV1) hash() ([utils.InfoHashLen]byte, error) {
@@ -90,6 +92,8 @@ func (bt *bencodeTorrentV1) toTorrentFile() (TorrentFile, error) {
 		Files:       bt.Info.Files,
 		TotalSize:   totalSize,
 		IsMultiple:  isMultiple,
+		CreatedBy:   bt.CreatedBy,
+		Comment:     bt.Comment,
 	}
 	if isMultiple {
 		for i := range t.Files {

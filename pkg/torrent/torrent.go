@@ -16,15 +16,17 @@ type File struct {
 }
 
 type TorrentFile struct {
-	Announce    string
-	InfoHash    [utils.InfoHashLen]byte
-	PieceHashes [][utils.PieceHashLen]byte
-	PieceLength int
-	Length      int
-	Name        string
-	Files       []File
-	TotalSize   int
-	IsMultiple  bool
+	Announce     string
+	InfoHash     [utils.InfoHashLen]byte
+	PieceHashes  [][utils.PieceHashLen]byte
+	PieceLength  int
+	Length       int
+	Name         string
+	Files        []File
+	TotalSize    int
+	IsMultiple   bool
+	CreatedBy    string
+	Comment      string
 }
 
 func Parse(path string) (TorrentFile, error) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DanArmor/GoTorrent/pkg/p2p"
+	"github.com/DanArmor/GoTorrent/pkg/torrentmeta"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -121,7 +122,7 @@ func CreateTable() table.Model {
 		Bold(false)
 	s.Selected = s.Selected.
 		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
+		Background(lipgloss.Color("#92817A")).
 		Bold(false)
 	t.SetStyles(s)
 	return t
@@ -165,13 +166,13 @@ func NewModel() model {
 			true,
 			"",
 			"",
-			lipgloss.AdaptiveColor{Light: "#000000", Dark: "63"},
-			lipgloss.AdaptiveColor{Light: "#000000", Dark: "63"},
-			lipgloss.AdaptiveColor{Light: "63", Dark: "63"},
+			lipgloss.AdaptiveColor{Light: "#000000", Dark: "#7D6A63"},
+			lipgloss.AdaptiveColor{Light: "#000000", Dark: "#7D6A63"},
+			lipgloss.AdaptiveColor{Light: "#F1DABF", Dark: "#F1DABF"},
 			lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
 		),
 		activeScreen: mainScreen,
-		v:            viewport.New(30, 5),
+		v:            viewport.New(30, 20),
 		mv:           viewport.New(30, 5),
 	}
 }
@@ -205,7 +206,7 @@ func (m model) UpdateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Resize()
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "q", "esc":
 			m.activeScreen = mainScreen
 		case "enter":
 			file := m.f.GetSelectedItem()
@@ -228,7 +229,7 @@ func (m *model) SetSize(msg tea.WindowSizeMsg) {
 func (m *model) Resize() {
 	if m.Width != 0 && m.Height != 0 {
 		m.t.SetWidth(m.Width)
-		m.t.SetHeight(m.Height - 11)
+		m.t.SetHeight(m.Height - 13)
 		m.f.SetSize(m.Width, m.Height)
 		m.help.Width = m.Width
 		m.mv.Width = m.Width
@@ -320,40 +321,53 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func tabBorderWithBottom(left, middle, right string) lipgloss.Border {
-	border := lipgloss.RoundedBorder()
-	border.BottomLeft = left
-	border.Bottom = middle
-	border.BottomRight = right
-	return border
-}
-
-var (
-	inactiveTabBorder = tabBorderWithBottom("┴", "─", "┴")
-	activeTabBorder   = tabBorderWithBottom("┘", " ", "└")
-	docStyle          = lipgloss.NewStyle().Padding(1, 2, 1, 2)
-	highlightColor    = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	inactiveTabStyle  = lipgloss.NewStyle().Border(inactiveTabBorder, true).BorderForeground(highlightColor).Padding(0, 1)
-	activeTabStyle    = inactiveTabStyle.Copy().Border(activeTabBorder, true)
-	windowsStyle      = lipgloss.NewStyle().BorderForeground(highlightColor).Padding(2, 0).Align(lipgloss.Center).Border(lipgloss.NormalBorder()).UnsetBorderTop()
-)
-
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
+	BorderForeground(lipgloss.Color("#F1DABF"))
+var viewStyle = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder(), true, false).
+	BorderForeground(lipgloss.Color("#F1DABF"))
+
+var tcs = lipgloss.NewStyle().
+	Border(lipgloss.InnerHalfBlockBorder()).
+	BorderForeground(lipgloss.Color("#92817A"))
+var tts = lipgloss.NewStyle().
+	Bold(true).
+	Background(lipgloss.Color("#7D6A63"))
 
 func (m model) filePickScreenView() string {
 	return m.f.View()
 }
 
 func (m model) mainScreenView() string {
-	return baseStyle.Render(m.t.View()) + "\n" + m.mv.View()
+	helpView := m.help.View(m.keys)
+	return baseStyle.Render(m.t.View()) + "\n" + viewStyle.Render(m.mv.View()) + "\n\n" + helpView
+}
+
+func (m model) advInfo(tf torrentmeta.TorrentFile) string {
+	var strs []string
+	if tf.CreatedBy != ""{
+		strs = append(strs, tcs.Render(fmt.Sprintf("%s %s", tts.Render("Created by:"), tf.CreatedBy)))
+	}
+	if tf.Comment != "" {
+		strs = append(strs, tcs.Render(fmt.Sprintf("%s %s", tts.Render("Comment:"), tf.Comment)))
+	}
+	return strings.Join(
+		strs, "\n",
+	)
 }
 
 func (m model) torrentViewScreenView() string {
 	tf := GlobalSettings.Torrents[m.t.Cursor()]
-	m.v.SetContent(strings.Join([]string{tf.Name, tf.Announce, hex.EncodeToString(tf.InfoHash[:]), strconv.Itoa(len(tf.PieceHashes))}, "\n"))
-	m.v.GotoBottom()
+	m.v.SetContent(strings.Join(
+		[]string{
+			tcs.Render(fmt.Sprintf("%s %s", tts.Render("Name:"), tf.Name)),
+			tcs.Render(fmt.Sprintf("%s %s", tts.Render("Tracker URL:"), tf.Announce)),
+			tcs.Render(fmt.Sprintf("%s %s", tts.Render("InfoHash:"), hex.EncodeToString(tf.InfoHash[:]))),
+			tcs.Render(fmt.Sprintf("%s %s", tts.Render("Amount of pieces:"), strconv.Itoa(len(tf.PieceHashes)))),
+			m.advInfo(tf),
+		}, "\n"))
+	m.v.GotoTop()
 	return m.v.View()
 }
 
@@ -367,6 +381,5 @@ func (m model) View() string {
 	case torrentViewScreen:
 		toRender = m.torrentViewScreenView()
 	}
-	helpView := m.help.View(m.keys)
-	return toRender + "\n\n" + helpView
+	return toRender
 }
