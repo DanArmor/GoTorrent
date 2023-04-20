@@ -91,7 +91,6 @@ func CreateTable() table.Model {
 		{Title: "Size", Width: 16},
 		{Title: "Status", Width: 16},
 		{Title: "Progress", Width: 16},
-		{Title: "Done", Width: 4},
 	}
 
 	var rows []table.Row
@@ -106,17 +105,10 @@ func CreateTable() table.Model {
 		} else {
 			status = "Stopped"
 		}
-		isDone := ""
-		if GlobalSettings.Torrents[i].IsDone {
-			isDone = "Yes"
-		} else {
-			isDone = "No"
-		}
 		rows = append(rows, table.Row{
 			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize),
 			status,
 			fmt.Sprintf("%.2f%%", 100.0 * float64(GlobalSettings.Torrents[i].Downloaded) / float64(len(GlobalSettings.Torrents[i].PieceHashes))),
-			isDone,
 		})
 	}
 
@@ -153,17 +145,10 @@ func (m *model) RedrawRows() {
 		} else {
 			status = "Stopped"
 		}
-		isDone := ""
-		if GlobalSettings.Torrents[i].IsDone {
-			isDone = "Yes"
-		} else {
-			isDone = "No"
-		}
 		rows = append(rows, table.Row{
 			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize),
 			status,
 			fmt.Sprintf("%.2f%%", 100.0 * float64(GlobalSettings.Torrents[i].Downloaded) / float64(len(GlobalSettings.Torrents[i].PieceHashes))),
-			isDone,
 		})
 	}
 	m.t.SetRows(rows)
