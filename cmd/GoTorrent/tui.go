@@ -80,7 +80,6 @@ type model struct {
 	f            filetree.Bubble
 	v            viewport.Model
 	mv           viewport.Model
-	Screens      []tea.Model
 	activeScreen int
 	fileNotInit  bool
 }
@@ -99,12 +98,25 @@ func CreateTable() table.Model {
 	for i := range GlobalSettings.Torrents {
 		status := ""
 		if GlobalSettings.Torrents[i].InProgress {
-			status = "Downloading"
+			if GlobalSettings.Torrents[i].IsDone {
+				status = "Uploading"
+			} else {
+				status = "Downloading"
+			}
 		} else {
 			status = "Stopped"
 		}
+		isDone := ""
+		if GlobalSettings.Torrents[i].IsDone {
+			isDone = "Yes"
+		} else {
+			isDone = "No"
+		}
 		rows = append(rows, table.Row{
-			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize), status, strconv.Itoa(GlobalSettings.Torrents[i].Downloaded),
+			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize),
+			status,
+			fmt.Sprintf("%.2f%%", 100.0 * float64(GlobalSettings.Torrents[i].Downloaded) / float64(len(GlobalSettings.Torrents[i].PieceHashes))),
+			isDone,
 		})
 	}
 
@@ -121,9 +133,9 @@ func CreateTable() table.Model {
 		BorderBottom(true).
 		Bold(false)
 	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
+		Foreground(lipgloss.Color("#FFFFFF")).
 		Background(lipgloss.Color("#92817A")).
-		Bold(false)
+		Bold(true)
 	t.SetStyles(s)
 	return t
 }
@@ -135,7 +147,7 @@ func (m *model) RedrawRows() {
 		if GlobalSettings.Torrents[i].InProgress {
 			if GlobalSettings.Torrents[i].IsDone {
 				status = "Uploading"
-			} else{
+			} else {
 				status = "Downloading"
 			}
 		} else {
@@ -149,7 +161,8 @@ func (m *model) RedrawRows() {
 		}
 		rows = append(rows, table.Row{
 			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize),
-			status, fmt.Sprintf("%.2f%%", float32(GlobalSettings.Torrents[i].Downloaded) / float32(len(GlobalSettings.Torrents[i].PieceHashes)) * 100.0),
+			status,
+			fmt.Sprintf("%.2f%%", 100.0 * float64(GlobalSettings.Torrents[i].Downloaded) / float64(len(GlobalSettings.Torrents[i].PieceHashes))),
 			isDone,
 		})
 	}
@@ -166,9 +179,9 @@ func NewModel() model {
 			true,
 			"",
 			"",
-			lipgloss.AdaptiveColor{Light: "#000000", Dark: "#7D6A63"},
-			lipgloss.AdaptiveColor{Light: "#000000", Dark: "#7D6A63"},
-			lipgloss.AdaptiveColor{Light: "#F1DABF", Dark: "#F1DABF"},
+			lipgloss.AdaptiveColor{Light: "#000000", Dark: "#F1DABF"},
+			lipgloss.AdaptiveColor{Light: "#000000", Dark: "#F1DABF"},
+			lipgloss.AdaptiveColor{Light: "#7D6A63", Dark: "#7D6A63"},
 			lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#ffffff"},
 		),
 		activeScreen: mainScreen,
@@ -277,7 +290,7 @@ func (m model) UpdateMainScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	newTable, cmd := m.t.Update(msg)
 	nmv, mvcmd := m.mv.Update(msg)
 	m.mv = nmv
-	
+
 	m.t = newTable
 	cmds = append(cmds, cmd, mvcmd)
 	return m, tea.Batch(cmds...)
@@ -346,7 +359,7 @@ func (m model) mainScreenView() string {
 
 func (m model) advInfo(tf torrentmeta.TorrentFile) string {
 	var strs []string
-	if tf.CreatedBy != ""{
+	if tf.CreatedBy != "" {
 		strs = append(strs, tcs.Render(fmt.Sprintf("%s %s", tts.Render("Created by:"), tf.CreatedBy)))
 	}
 	if tf.Comment != "" {

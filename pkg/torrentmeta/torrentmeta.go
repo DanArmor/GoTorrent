@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/gob"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -27,7 +26,7 @@ const Port uint16 = 36010
 type bencodeTrackerRespCompact struct {
 	Interval int    `bencode:"interval"`
 	Peers    string `bencode:"peers"`
-	Peers6   string `bencode:"peers6"`
+	Peers6   string `bencode:"peers6,omitempty"`
 }
 
 type TorrentFile struct {
@@ -122,7 +121,7 @@ func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) (
 	if err != nil {
 		return nil, err
 	}
-	if len(trackerResp.Peers) == 0{
+	if len([]byte(trackerResp.Peers)) == 0{
 		return peers.Unmarshal([]byte(trackerResp.Peers6))
 	} else{
 		return peers.Unmarshal([]byte(trackerResp.Peers))
@@ -166,8 +165,6 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 				fileIndex++
 			}
 		}
-		beg, end := t.calculateBoundsForPiece(i)
-		p2p.WriteToLog(fmt.Sprintf("check of %d piece. n=%d. begin=%d end=%d", i, n, beg, end))
 		if n != len(buf) {
 			p2p.WriteToLog("hello")
 			for {
@@ -188,7 +185,6 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 				}
 			}
 		}
-		p2p.WriteToLog(fmt.Sprint(t.CheckIntegrity(t.PieceHashes[i], buf)))
 		if !t.CheckIntegrity(t.PieceHashes[i], buf) {
 			return false
 		}
@@ -198,8 +194,6 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 
 func (t *TorrentFile) CheckIntegrity(pw [utils.PieceHashLen]byte, buf []byte) bool {
 	hash := sha1.Sum(buf)
-	p2p.WriteToLog(fmt.Sprint(hash))
-	p2p.WriteToLog(fmt.Sprint(pw))
 	return bytes.Equal(hash[:], pw[:])
 }
 
@@ -210,7 +204,6 @@ func (tf *TorrentFile) DownloadToFile() error {
 		return err
 	}
 	peers, err := tf.requestPeers(peerID, Port)
-	p2p.WriteToLog(fmt.Sprint(peers))
 	if err != nil {
 		return err
 	}
