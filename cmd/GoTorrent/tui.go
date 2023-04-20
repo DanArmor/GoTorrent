@@ -304,6 +304,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.RedrawRows()
 		m.mv.SetContent(p2p.GetLogString())
+		m.mv.GotoBottom()
 		return m, tickCmd()
 	}
 

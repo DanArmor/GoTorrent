@@ -219,24 +219,32 @@ func (t *Torrent) calculatePieceSize(index int) int {
 
 func (t *Torrent) writeToFile(pr pieceResult) {
 	begin, _ := t.calculateBoundsForPiece(pr.index)
-	index := 0
+	index := -1
 	for i := range t.Files {
-		if begin >= t.Files[i].Begin {
-			index = i
+		if begin <= t.Files[i].Begin {
+			index = i-1
 			break
 		}
+	}
+	if index == -1{
+		index = len(t.Files)-1
 	}
 	pieceLength := t.calculatePieceSize(pr.index)
 	wrote := 0
 	for i := index; i < len(t.Files); i++ {
-		startInFile := begin - t.Files[i].Begin
+		startInFile := 0
+		if wrote == 0 {
+			startInFile = begin - t.Files[i].Begin
+		}
 		endInFile := startInFile + pieceLength
 		if endInFile > t.Files[i].Length {
 			endInFile = t.Files[i].Length
 		}
+		//fmt.Print(fmt.Sprintf("i:%d wrote: %d, startInFile: %d  endInFile%d  len(pr.buf):%d  pieceLenght %d\n", pr.index, wrote, startInFile, endInFile, len(pr.buf), pieceLength))
 		t.Files[i].Handler.WriteAt(pr.buf[wrote:wrote+endInFile-startInFile], int64(startInFile))
 		wrote += endInFile - startInFile
-		pieceLength -= wrote
+		pieceLength -= endInFile - startInFile
+		//WriteToLog(fmt.Sprintf("---wrote: %d, startInFile: %d  endInFile%d  len(pr.buf):%d  pieceLenght %d", wrote, startInFile, endInFile, len(pr.buf), pieceLength))
 		if pieceLength == 0 {
 			break
 		}

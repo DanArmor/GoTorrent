@@ -76,8 +76,9 @@ func (s *Settings) AddTorent(path string) {
 	}
 
 	if allFilesExist {
-		p2p.WriteToLog("All files exist")
 		if tf.CheckFilesIntegrity() {
+			p2p.WriteToLog("All files exist")
+			tf.Bitfield = make(bitfield.Bitfield, len(tf.PieceHashes)/8+1)
 			for i := range tf.PieceHashes {
 				tf.Bitfield.SetPiece(i)
 			}
@@ -169,6 +170,7 @@ func ReadBlock(pieceLength int, index int, begin int, length int, files []p2p.Fi
 }
 
 func (s *Settings) SeedTorrent(conn net.Conn) {
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
 	res, err := handshake.Read(conn)
 	if err != nil {
 		return
@@ -190,6 +192,7 @@ func (s *Settings) SeedTorrent(conn net.Conn) {
 		}
 	}
 	if serve {
+		conn.SetDeadline(time.Time{})
 		req := handshake.New(infoHash, SeedPeerID)
 		_, err := conn.Write(req.Serialize())
 		if err != nil {
@@ -202,8 +205,8 @@ func (s *Settings) SeedTorrent(conn net.Conn) {
 			InfoHash: infoHash,
 			PeerID:   SeedPeerID,
 		}
-		cl.Conn.SetDeadline(time.Now().Add(1 * time.Second))
 		cl.SendBitfield(bf)
+		cl.SendUnchoke()
 
 		var p2pFiles []p2p.File
 		for i := range files {
@@ -221,20 +224,26 @@ func (s *Settings) SeedTorrent(conn net.Conn) {
 			case <-ctx.Done():
 				return
 			default:
-				cl.Conn.SetDeadline(time.Now().Add(1 * time.Second))
 				m, err := cl.Read()
 				if err != nil {
 					panic(err)
 				}
-				reqindex, reqbegin, reqlength, err := message.ParseRequest(m)
-				if err != nil {
-					panic(err)
+				switch m.ID {
+				case message.MsgUnchoke:
+					cl.Choked = false
+				case message.MsgChoke:
+					cl.Choked = true
+				case message.MsgRequest:
+					reqindex, reqbegin, reqlength, err := message.ParseRequest(m)
+					if err != nil {
+						panic(err)
+					}
+					if m.ID != message.MsgRequest {
+						continue
+					}
+					b := ReadBlock(pieceLength, reqindex, reqbegin, reqlength, p2pFiles)
+					cl.SendPiece(reqindex, reqbegin, b)
 				}
-				if m.ID != message.MsgRequest {
-					continue
-				}
-				b := ReadBlock(pieceLength, reqindex, reqbegin, reqlength, p2pFiles)
-				cl.SendPiece(reqindex, reqbegin, b)
 			}
 		}
 	} else {
