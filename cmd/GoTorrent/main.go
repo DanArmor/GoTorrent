@@ -150,6 +150,7 @@ func ReadBlock(pieceLength int, index int, begin int, length int, files []p2p.Fi
 	}
 	n := 0
 	b := make([]byte, length)
+	files[fileIndex].Handler.Seek(int64(files[fileIndex].Length + totalOffset), io.SeekStart)
 	for {
 		r, err := files[fileIndex].Handler.Read(b)
 		if err != nil {
@@ -245,7 +246,7 @@ func (s *Settings) Seeding(ctx context.Context) {
 	p2p.WriteToLog("Started seeding")
 	s.Wg.Add(1)
 	defer s.Wg.Done()
-	ln, err := net.Listen("tcp", fmt.Sprintf("192.168.10.18:%d", torrentmeta.Port))
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", torrentmeta.Port))
 	if err != nil {
 		p2p.WriteToLog("Error: " + fmt.Sprint(err))
 	}
