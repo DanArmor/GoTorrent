@@ -250,7 +250,6 @@ func (s *Settings) Seeding(ctx context.Context) {
 	if err != nil {
 		p2p.WriteToLog("Error: " + fmt.Sprint(err))
 	}
-	defer ln.Close()
 	var wg sync.WaitGroup
 	go func() {
 		for {
@@ -258,6 +257,7 @@ func (s *Settings) Seeding(ctx context.Context) {
 			conn, err := ln.Accept()
 			if err != nil {
 				p2p.WriteToLog("Error: " + fmt.Sprint(err))
+				break
 			}
 			p2p.WriteToLog("New connection")
 			wg.Add(1)
@@ -289,8 +289,7 @@ func (s *Settings) startTorrent(index int) {
 		if err != nil {
 			p2p.WriteToLog("Can't announce")
 		}
-		p2p.WriteToLog("Announced with " + trackerUrl)
-		defer resp.Body.Close()
+		resp.Body.Close()
 		go func() {
 			defer s.Wg.Done()
 			ctx, cancel := context.WithCancel(context.Background())
