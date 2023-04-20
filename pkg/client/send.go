@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/DanArmor/GoTorrent/pkg/bitfield"
 	"github.com/DanArmor/GoTorrent/pkg/message"
 )
 
@@ -31,5 +32,20 @@ func (c *Client) SendUnchoke() error {
 func (c *Client) SendHave(index int) error {
 	req := message.FormatHave(index)
 	_, err := c.Conn.Write(req.Serialize())
+	return err
+}
+
+func (c *Client) SendPiece(index int, begin int, b []byte) error{
+	m := message.FormatPiece(index, begin, b)
+	_, err := c.Conn.Write(m.Serialize())
+	return err
+}
+
+func (c *Client) SendBitfield(bf bitfield.Bitfield) error{
+	m := message.Message{
+		ID: message.MsgBitfield,
+		Payload: bf,
+	}
+	_, err := c.Conn.Write(m.Serialize())
 	return err
 }

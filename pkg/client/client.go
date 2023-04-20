@@ -18,8 +18,8 @@ type Client struct {
 	Choked   bool
 	Bitfield bitfield.Bitfield
 	peer     peers.Peer
-	infoHash [utils.InfoHashLen]byte
-	peerID   [utils.PeerIDLen]byte
+	InfoHash [utils.InfoHashLen]byte
+	PeerID   [utils.PeerIDLen]byte
 }
 
 func CheckHandshake(peer peers.Peer, peerID [utils.PeerIDLen]byte, infoHash [utils.InfoHashLen]byte) error {
@@ -46,7 +46,7 @@ func New(peer peers.Peer, peerID [utils.PeerIDLen]byte, infoHash [utils.InfoHash
 		conn.Close()
 		return nil, err
 	}
-	bf, err := recvBitfield(conn)
+	bf, err := RecvBitfield(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -57,8 +57,8 @@ func New(peer peers.Peer, peerID [utils.PeerIDLen]byte, infoHash [utils.InfoHash
 		Choked:   true,
 		Bitfield: bf,
 		peer:     peer,
-		infoHash: infoHash,
-		peerID:   peerID,
+		InfoHash: infoHash,
+		PeerID:   peerID,
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func completeHandshake(conn net.Conn, infoHash [utils.InfoHashLen]byte, peerID [
 	return res, nil
 }
 
-func recvBitfield(conn net.Conn) (bitfield.Bitfield, error) {
+func RecvBitfield(conn net.Conn) (bitfield.Bitfield, error) {
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	defer conn.SetDeadline(time.Time{})
 

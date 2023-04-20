@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -20,20 +21,19 @@ type keyMap struct {
 	Up          key.Binding
 	Down        key.Binding
 	ViewTorrent key.Binding
-	Settings    key.Binding
 	Quit        key.Binding
 	StartStop   key.Binding
 	Remove      key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.StartStop, k.Remove, k.ViewTorrent, k.Settings, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.StartStop, k.Remove, k.ViewTorrent, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.ViewTorrent},
-		{k.Settings, k.Quit},
+		{k.Quit},
 	}
 }
 
@@ -49,10 +49,6 @@ var keys = keyMap{
 	ViewTorrent: key.NewBinding(
 		key.WithKeys("enter"),
 		key.WithHelp("↵/enter", "view torrent"),
-	),
-	Settings: key.NewBinding(
-		key.WithKeys("s"),
-		key.WithHelp("s", "settings"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "esc"),
@@ -136,7 +132,11 @@ func (m *model) RedrawRows() {
 	for i := range GlobalSettings.Torrents {
 		status := ""
 		if GlobalSettings.Torrents[i].InProgress {
-			status = "Downloading"
+			if GlobalSettings.Torrents[i].IsDone {
+				status = "Uploading"
+			} else{
+				status = "Downloading"
+			}
 		} else {
 			status = "Stopped"
 		}
@@ -147,7 +147,9 @@ func (m *model) RedrawRows() {
 			isDone = "No"
 		}
 		rows = append(rows, table.Row{
-			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize), status, strconv.Itoa(GlobalSettings.Torrents[i].Downloaded), isDone,
+			strconv.Itoa(i + 1), GlobalSettings.Torrents[i].Name, formatBytes(GlobalSettings.Torrents[i].TotalSize),
+			status, fmt.Sprintf("%.2f%%", float32(GlobalSettings.Torrents[i].Downloaded) / float32(len(GlobalSettings.Torrents[i].PieceHashes)) * 100.0),
+			isDone,
 		})
 	}
 	m.t.SetRows(rows)

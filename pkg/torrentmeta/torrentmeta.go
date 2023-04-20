@@ -22,7 +22,7 @@ import (
 	"github.com/jackpal/bencode-go"
 )
 
-const Port uint16 = 6881
+const Port uint16 = 36010
 
 type bencodeTrackerRespCompact struct {
 	Interval int    `bencode:"interval"`
@@ -86,7 +86,7 @@ func (tf *TorrentFile) Load(path string) {
 	f.Close()
 }
 
-func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, error) {
+func (tf *TorrentFile) BuildTrackerURL(peerID [20]byte, port uint16) (string, error) {
 	base, err := url.Parse(tf.Announce)
 	if err != nil {
 		return "", err
@@ -95,17 +95,17 @@ func (tf *TorrentFile) buildTrackerURL(peerID [20]byte, port uint16) (string, er
 		"info_hash":  []string{string(tf.InfoHash[:])},
 		"peer_id":    []string{string(peerID[:])},
 		"port":       []string{strconv.Itoa(int(port))},
-		"uploaded":   []string{"0"},
-		"downloaded": []string{"0"},
+		"uploaded":   []string{strconv.Itoa(tf.Uploaded)},
+		"downloaded": []string{strconv.Itoa(tf.Downloaded)},
 		"compact":    []string{"1"},
-		"left":       []string{strconv.Itoa(tf.Length)},
+		"left":       []string{strconv.Itoa(len(tf.PieceHashes) - tf.Downloaded)},
 	}
 	base.RawQuery = params.Encode()
 	return base.String(), nil
 }
 
 func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) ([]peers.Peer, error) {
-	trackerUrl, err := tf.buildTrackerURL(peerID, port)
+	trackerUrl, err := tf.BuildTrackerURL(peerID, port)
 	if err != nil {
 		return nil, err
 	}
@@ -141,22 +141,24 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 	for i := range t.PieceHashes {
 		n, err := handlers[fileIndex].Read(buf)
 		if err != nil {
-			if err != io.EOF{
+			if err != io.EOF {
 				panic(err)
-			} else{
+			} else {
 				fileIndex++
 			}
 		}
 		if n != t.PieceLength {
 			for {
-				if fileIndex == len(t.Files){
+				if fileIndex == len(t.Files) {
 					return t.CheckIntegrity(t.PieceHashes[i], buf)
 				}
 				r, err := handlers[fileIndex].Read(buf[n+1:])
-				if err != io.EOF{
-					panic(err)
-				} else{
-					fileIndex++
+				if err != nil {
+					if err != io.EOF {
+						panic(err)
+					} else {
+						fileIndex++
+					}
 				}
 				n += r
 				if n == t.PieceLength {
@@ -165,7 +167,7 @@ func (t *TorrentFile) CheckFilesIntegrity() bool {
 			}
 		}
 		if !t.CheckIntegrity(t.PieceHashes[i], buf) {
-				return false
+			return false
 		}
 	}
 	return true

@@ -74,6 +74,13 @@ func FormatRequest(index int, begin int, length int) *Message {
 	return &Message{ID: MsgRequest, Payload: payload}
 }
 
+func FormatPiece(index int, begin int, b []byte) *Message {
+	payload := make([]byte, 8)
+	binary.BigEndian.PutUint32(payload[0:4], uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	return &Message{ID: MsgPiece, Payload: append(payload, b...)}
+}
+
 func FormatHave(index int) *Message {
 	payload := make([]byte, 4)
 	binary.BigEndian.PutUint32(payload, uint32(index))
@@ -147,4 +154,13 @@ func ParsePiece(index int, buf []byte, msg *Message) (int, error) {
 	}
 	copy(buf[begin:], data)
 	return len(data), nil
+}
+
+func ParseRequest(msg *Message) (index int, begin int, length int, err error) {
+	if msg.ID != MsgRequest {
+		return 0, 0, 0, fmt.Errorf("expected PIECE (ID=%d), got ID=%d", MsgRequest, msg.ID)
+	}
+	return int(binary.BigEndian.Uint32(msg.Payload[0:4])), int(binary.BigEndian.Uint32(msg.Payload[4:8])), int(binary.BigEndian.Uint32(msg.Payload[8:12])), nil
+
+
 }
