@@ -122,9 +122,9 @@ func (tf *TorrentFile) requestPeers(peerID [utils.PeerIDLen]byte, port uint16) (
 		return nil, err
 	}
 	if len([]byte(trackerResp.Peers)) == 0{
-		return peers.Unmarshal([]byte(trackerResp.Peers6))
+		return peers.Unmarshal([]byte(trackerResp.Peers6), false)
 	} else{
-		return peers.Unmarshal([]byte(trackerResp.Peers))
+		return peers.Unmarshal([]byte(trackerResp.Peers), true)
 	}
 }
 

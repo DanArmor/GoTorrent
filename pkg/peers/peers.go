@@ -15,13 +15,13 @@ type Peer struct {
 	PeerID [utils.PeerIDLen]byte
 }
 
-func Unmarshal(peersBin []byte) ([]Peer, error) {
-	peerSize := 6
+func Unmarshal(peersBin []byte, isIpv4 bool) ([]Peer, error) {
+	peerSize := 18
+	if isIpv4 {
+		peerSize = 6
+	}
 	if len(peersBin)%peerSize != 0 {
-		peerSize = 18
-		if len(peersBin)%peerSize != 0 {
-			return nil, fmt.Errorf("malformed peers")
-		}
+		return nil, fmt.Errorf("malformed peers")
 	}
 	n := len(peersBin) / peerSize
 	peers := make([]Peer, n)
