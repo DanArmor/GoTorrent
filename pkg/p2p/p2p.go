@@ -299,4 +299,5 @@ out:
 	wg.Wait()
 	close(workQueue)
 	close(count)
+	close(results)
 }
